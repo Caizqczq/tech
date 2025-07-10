@@ -25,11 +25,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Flux;
+import org.springframework.http.ResponseEntity;
 
 import java.net.URI;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
+@RequestMapping("/api")
 @Slf4j
 public class ChatController {
 
@@ -85,7 +89,7 @@ public class ChatController {
      * 图片分析接口 - 通过 URL
      */
     @PostMapping("/image/analyze/url")
-    public String analyzeImageByUrl(@RequestParam(defaultValue = "请分析这张图片的内容")String prompt,
+    public ResponseEntity<String> analyzeImageByUrl(@RequestParam(defaultValue = "请分析这张图片的内容")String prompt,
                                     @RequestParam String imageUrl) {
         try {
             List<Media>mediaList=List.of(new Media(MimeTypeUtils.IMAGE_JPEG,new URI(imageUrl)));
@@ -107,10 +111,12 @@ public class ChatController {
                             .withTemperature(0.7)
                             .build());
 
-            return dashScopeChatClient.prompt(chatPrompt).call().content();
+            String result = dashScopeChatClient.prompt(chatPrompt).call().content();
+            return ResponseEntity.ok(result);
 
         }catch (Exception e) {
-            return "图片分析失败"+ e.getMessage();
+            log.error("图片分析失败", e);
+            return ResponseEntity.internalServerError().body("图片分析失败: 无法访问指定的图片URL");
         }
     }
 
@@ -118,12 +124,12 @@ public class ChatController {
      * 图片分析接口 - 通过文件上传
      */
     @PostMapping("/image/analyze/upload")
-    public String analyzeImageByUpload(@RequestParam(defaultValue = "请分析这张图片的内容") String prompt,
+    public ResponseEntity<String> analyzeImageByUpload(@RequestParam(defaultValue = "请分析这张图片的内容") String prompt,
                                        @RequestParam("file") MultipartFile file) {
         try {
             // 验证文件类型
             if (!file.getContentType().startsWith("image/")) {
-                return "请上传图片文件";
+                return ResponseEntity.badRequest().body("请上传图片文件");
             }
 
             // 创建包含图片的用户消息
@@ -146,10 +152,12 @@ public class ChatController {
                             .build());
 
             // 调用模型进行图片分析
-            return dashScopeChatClient.prompt(chatPrompt).call().content();
+            String result = dashScopeChatClient.prompt(chatPrompt).call().content();
+            return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            return "图片分析失败: " + e.getMessage();
+            log.error("图片分析失败", e);
+            return ResponseEntity.badRequest().body("图片分析失败: " + e.getMessage());
         }
     }
 

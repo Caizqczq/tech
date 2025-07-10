@@ -38,9 +38,15 @@ public class UserController {
      * @return
      */
     @PostMapping("register")
-    public ResponseEntity<RegisterVO> register(@RequestBody RegisterDTO registerDto) {
+    public ResponseEntity<?> register(@RequestBody RegisterDTO registerDto) {
         if (registerDto.getUsername() == null || registerDto.getEmail() == null || registerDto.getPassword() == null) {
-            return ResponseEntity.badRequest().build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("timestamp", new Date().toString());
+            error.put("status", 400);
+            error.put("error", "Bad Request");
+            error.put("message", "用户名、邮箱和密码不能为空");
+            error.put("path", "/api/auth/register");
+            return ResponseEntity.badRequest().body(error);
         }
         RegisterVO registerVO = userService.registerUser(registerDto);
         return ResponseEntity.ok(registerVO);
@@ -52,13 +58,25 @@ public class UserController {
      * @return
      */
     @PostMapping("login")
-    public ResponseEntity<Map<String,Object>> login(@RequestBody LoginDTO loginDTO) {
+    public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
         if (loginDTO.getEmail() == null || loginDTO.getPassword() == null) {
-            return ResponseEntity.badRequest().build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("timestamp", new Date().toString());
+            error.put("status", 400);
+            error.put("error", "Bad Request");
+            error.put("message", "邮箱和密码不能为空");
+            error.put("path", "/api/auth/login");
+            return ResponseEntity.badRequest().body(error);
         }
         LoginVO loginVO = userService.loginUser(loginDTO);
         if (loginVO == null) {
-            return ResponseEntity.status(401).build(); // Unauthorized
+            Map<String, Object> error = new HashMap<>();
+            error.put("timestamp", new Date().toString());
+            error.put("status", 401);
+            error.put("error", "Unauthorized");
+            error.put("message", "邮箱或密码错误");
+            error.put("path", "/api/auth/login");
+            return ResponseEntity.status(401).body(error);
         }
         String token = jwtUtil.generateToken(loginVO.getId(), loginVO.getUsername());
         Map<String, Object> response = new HashMap<>();
@@ -85,7 +103,7 @@ public class UserController {
      * @return
      */
     @PostMapping("logout")
-    public ResponseEntity<Void> logout(HttpServletRequest request){
+    public ResponseEntity<?> logout(HttpServletRequest request){
         String token = request.getHeader("Authorization");
         if (token != null && token.startsWith("Bearer ")) {
             token = token.substring(7);
@@ -104,14 +122,26 @@ public class UserController {
      * @return
      */
     @GetMapping("me")
-    public ResponseEntity<UserInfoVO> getInfo(){
+    public ResponseEntity<?> getInfo(){
         Integer userId = ThreadLocalUtil.get();
         if (userId == null) {
-            return ResponseEntity.status(401).build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("timestamp", new Date().toString());
+            error.put("status", 401);
+            error.put("error", "Unauthorized");
+            error.put("message", "Token无效或已过期");
+            error.put("path", "/api/auth/me");
+            return ResponseEntity.status(401).body(error);
         }
         UserInfoVO userInfoVO = userService.getUserInfo(userId);
         if (userInfoVO == null) {
-            return ResponseEntity.notFound().build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("timestamp", new Date().toString());
+            error.put("status", 404);
+            error.put("error", "Not Found");
+            error.put("message", "用户不存在");
+            error.put("path", "/api/auth/me");
+            return ResponseEntity.status(404).body(error);
         }
 
         return ResponseEntity.ok(userInfoVO);
