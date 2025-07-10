@@ -46,9 +46,7 @@ create table teaching_materials(
                                    
                                    index idx_user_id (user_id),
                                    index idx_subject (subject),
-                                   index idx_material_type (material_type),
-                                   
-                                   foreign key (user_id) references user(id) on delete cascade
+                                   index idx_material_type (material_type)
 ) default charset = utf8mb4 comment = "教学素材表";
 
 -- 音频转录任务表
@@ -65,7 +63,36 @@ create table transcription_tasks(
                                     completed_at timestamp comment '完成时间',
                                     
                                     index idx_material_id (material_id),
-                                    index idx_status (status),
-                                    
-                                    foreign key (material_id) references teaching_materials(id) on delete cascade
+                                    index idx_status (status)
 ) default charset = utf8mb4 comment = "音频转录任务表";
+
+-- 对话会话表
+drop table if exists conversations;
+create table conversations(
+                              id varchar(50) primary key comment '对话ID',
+                              user_id int not null comment '用户ID',
+                              title varchar(200) not null comment '对话标题',
+                              scenario enum('teaching_advice', 'content_analysis', 'writing_assistance', 'general_chat') not null comment '对话场景',
+                              context_info json comment '上下文信息(学科、课程层次等)',
+                              total_messages int default 0 comment '消息总数',
+                              created_at timestamp default current_timestamp comment '创建时间',
+                              updated_at timestamp default current_timestamp on update current_timestamp comment '更新时间',
+                              
+                              index idx_user_id (user_id),
+                              index idx_scenario (scenario),
+                              index idx_created_at (created_at)
+) default charset = utf8mb4 comment = "对话会话表";
+
+-- 对话消息表
+drop table if exists chat_messages;
+create table chat_messages(
+                              id varchar(50) primary key comment '消息ID',
+                              conversation_id varchar(50) not null comment '对话ID',
+                              message_type enum('user', 'assistant', 'system') not null comment '消息类型',
+                              content longtext not null comment '消息内容',
+                              metadata json comment '消息元数据(tokens、模型参数等)',
+                              created_at timestamp default current_timestamp comment '创建时间',
+                              
+                              index idx_conversation_id (conversation_id),
+                              index idx_created_at (created_at)
+) default charset = utf8mb4 comment = "对话消息表";
