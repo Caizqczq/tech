@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mtm.backend.repository.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.mtm.backend.repository.User">
+            <id property="id" column="id" />
+            <result property="username" column="username" />
+            <result property="email" column="email" />
+            <result property="passwordHash" column="password_hash" />
+            <result property="avatar" column="avatar" />
+            <result property="createdAt" column="created_at" />
+            <result property="updatedAt" column="updated_at" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,username,email,password_hash,avatar,
+        created_at,updated_at
+    </sql>
+
+    <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from user
+        where  id = #{id} 
+    </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Long">
+        delete from user
+        where  id = #{id} 
+    </delete>
+    <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.mtm.backend.repository.User" useGeneratedKeys="true">
+        insert into user
+        ( id,username,email,password_hash,avatar,
+        created_at,updated_at)
+        values (#{id},#{username},#{email},#{passwordHash},#{avatar},#{createdAt},#{updatedAt})
+    </insert>
+    <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.mtm.backend.repository.User" useGeneratedKeys="true">
+        insert into user
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+                <if test="id != null">id,</if>
+                <if test="username != null">username,</if>
+                <if test="email != null">email,</if>
+                <if test="passwordHash != null">password_hash,</if>
+                <if test="avatar != null">avatar,</if>
+                <if test="createdAt != null">created_at,</if>
+                <if test="updatedAt != null">updated_at,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+                <if test="id != null">#{id},</if>
+                <if test="username != null">#{username},</if>
+                <if test="email != null">#{email},</if>
+                <if test="passwordHash != null">#{passwordHash},</if>
+                <if test="avatar != null">#{avatar},</if>
+                <if test="createdAt != null">#{createdAt},</if>
+                <if test="updatedAt != null">#{updatedAt},</if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.mtm.backend.repository.User">
+        update user
+        <set>
+                <if test="username != null">
+                    username = #{username},
+                </if>
+                <if test="email != null">
+                    email = #{email},
+                </if>
+                <if test="passwordHash != null">
+                    password_hash = #{passwordHash},
+                </if>
+                <if test="avatar != null">
+                    avatar = #{avatar},
+                </if>
+                <if test="createdAt != null">
+                    created_at = #{createdAt},
+                </if>
+                <if test="updatedAt != null">
+                    updated_at = #{updatedAt},
+                </if>
+        </set>
+        where   id = #{id} 
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.mtm.backend.repository.User">
+        update user
+        set 
+            username =  #{username},
+            email =  #{email},
+            password_hash =  #{passwordHash},
+            avatar =  #{avatar},
+            created_at =  #{createdAt},
+            updated_at =  #{updatedAt}
+        where   id = #{id} 
+    </update>
+    <select id="findByIdentifier" parameterType="string" resultType="com.mtm.backend.repository.User">
+        select id,username,email,password_hash as passwordHash,avatar,created_at as createdAt,updated_at as updatedAt
+        from user
+        where username = #{identifier} or email = #{identifier}
+        limit 1
+    </select>
+</mapper>
