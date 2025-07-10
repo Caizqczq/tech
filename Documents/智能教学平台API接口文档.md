@@ -247,49 +247,159 @@ Hello 张教授!
 
 ## 2. 智能对话模块
 
-### 2.1 知识点咨询对话
+### 2.1 简单对话接口
 
-**接口描述：** 与AI进行学科知识点咨询，支持高等教育各专业领域
+**接口描述：** 基于Spring AI Alibaba ChatClient的简单对话接口，支持会话记忆功能
 
 **请求信息：**
-- **URL：** `POST /api/chat/knowledge`
-- **Content-Type：** `application/json`
+- **URL：** `GET /simple/chat`
 - **认证：** 需要JWT Token
 
 **请求参数：**
 | 参数名 | 类型 | 必填 | 说明 | 示例 |
 |--------|------|------|------|------|
-| question | String | 是 | 咨询问题 | "请解释微积分中导数的几何意义" |
-| subject | String | 否 | 学科领域 | "数学" |
-| context | String | 否 | 上下文信息 | "这是高等数学课程的内容" |
-| sessionId | String | 否 | 会话ID，保持对话连续性 | "session_123456" |
+| query | String | 否 | 用户问题 | "你好,能简单介绍一下自己吗" |
+| chat-id | String | 否 | 会话ID，保持对话连续性 | "1" |
 
 **请求示例：**
-```json
-{
-  "question": "请解释微积分中导数的几何意义",
-  "subject": "数学",
-  "context": "这是高等数学课程的内容",
-  "sessionId": "session_123456"
-}
+```
+GET /simple/chat?query=请解释微积分中导数的几何意义&chat-id=chat_123456
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
 **成功响应：**
-```json
+```
 HTTP/1.1 200 OK
-Content-Type: application/json
+Content-Type: text/plain; charset=utf-8
 
-{
-  "answer": "导数的几何意义是函数图像在某一点处的切线斜率。具体来说：\n1. 对于函数f(x)在点x₀处的导数f'(x₀)，表示函数图像在点(x₀, f(x₀))处的切线斜率\n2. 这个斜率反映了函数在该点的瞬时变化率\n3. 如果导数为正，函数在该点递增；如果导数为负，函数在该点递减\n4. 导数的绝对值越大，函数变化越剧烈",
-  "sessionId": "session_123456",
-  "relatedTopics": ["切线", "变化率", "函数单调性"],
-  "timestamp": "2024-01-01T10:00:00"
-}
+导数的几何意义是函数图像在某一点处的切线斜率。具体来说：
+1. 对于函数f(x)在点x₀处的导数f'(x₀)，表示函数图像在点(x₀, f(x₀))处的切线斜率
+2. 这个斜率反映了函数在该点的瞬时变化率
+3. 如果导数为正，函数在该点递增；如果导数为负，函数在该点递减
+4. 导数的绝对值越大，函数变化越剧烈
 ```
 
-### 2.2 教学方法建议
+### 2.2 流式对话接口
 
-**接口描述：** 获取针对特定知识点的教学方法建议
+**接口描述：** 支持Server-Sent Events的流式对话响应，实时返回生成内容
+
+**请求信息：**
+- **URL：** `GET /stream/chat`
+- **认证：** 需要JWT Token
+
+**成功响应：** (Server-Sent Events格式)
+```
+HTTP/1.1 200 OK
+Content-Type: text/event-stream; charset=utf-8
+Cache-Control: no-cache
+Connection: keep-alive
+
+data: 导数的几何意义
+
+data: 是函数图像在某一点处
+
+data: 的切线斜率。具体来说...
+
+[EOF]
+```
+
+### 2.3 图片分析接口 - URL方式
+
+**接口描述：** 基于Spring AI Alibaba多模态模型，通过图片URL进行图像内容分析
+
+**请求信息：**
+- **URL：** `POST /image/analyze/url`
+- **Content-Type：** `application/x-www-form-urlencoded`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| prompt | String | 否 | 分析提示词 | "请分析这张图片的内容" |
+| imageUrl | String | 是 | 图片URL地址 | "https://example.com/image.jpg" |
+
+**请求示例：**
+```
+POST /image/analyze/url
+Content-Type: application/x-www-form-urlencoded
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+
+prompt=请分析这张数学图表的内容&imageUrl=https://example.com/chart.jpg
+```
+
+**成功响应：**
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+
+这是一张关于函数y=x²的图像，显示了抛物线的特征：
+1. 开口向上的抛物线
+2. 顶点在原点(0,0)
+3. 关于y轴对称
+4. 函数值在x=0处达到最小值0
+```
+
+**错误响应：**
+```
+HTTP/1.1 500 Internal Server Error
+Content-Type: text/plain; charset=utf-8
+
+图片分析失败: 无法访问指定的图片URL
+```
+
+### 2.4 图片分析接口 - 文件上传方式
+
+**接口描述：** 基于Spring AI Alibaba多模态模型，通过文件上传进行图像内容分析
+
+**请求信息：**
+- **URL：** `POST /image/analyze/upload`
+- **Content-Type：** `multipart/form-data`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 限制 |
+|--------|------|------|------|------|
+| file | File | 是 | 图片文件 | 支持jpg/png/gif等图片格式 |
+| prompt | String | 否 | 分析提示词 | "请分析这张图片的内容" |
+
+**请求示例：**
+```
+POST /image/analyze/upload
+Content-Type: multipart/form-data
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="math_chart.jpg"
+Content-Type: image/jpeg
+
+[binary image data]
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="prompt"
+
+请详细分析这张数学图表
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+```
+
+**成功响应：**
+```
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+
+这是一张数学函数图像，包含以下要素：
+1. 坐标系：标准的笛卡尔坐标系，有x轴和y轴
+2. 函数曲线：红色的抛物线，方程为y=x²
+3. 特征点：顶点在原点(0,0)，开口向上
+4. 对称性：关于y轴对称
+5. 适用于高等数学函数课程教学
+```
+
+**错误响应：**
+```
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+请上传图片文件
+```
 
 **请求信息：**
 - **URL：** `POST /api/chat/teaching-advice`
@@ -622,11 +732,11 @@ Content-Type: application/json
 }
 ```
 
-## 3. 多模态素材上传模块（待实现）
+## 3. 多模态素材上传模块
 
 ### 3.1 学术文档上传
 
-**接口描述：** 上传高等教育教学文档素材（教案、论文、课件等）
+**接口描述：** 基于Spring Boot标准实现的文档上传接口，支持教案、论文、课件等学术资料
 
 **请求信息：**
 - **URL：** `POST /api/materials/upload/document`
@@ -642,7 +752,7 @@ Content-Type: application/json
 | documentType | String | 是 | 文档类型 | lesson_plan/syllabus/paper/textbook |
 | title | String | 否 | 文档标题 | 最大100字符 |
 | description | String | 否 | 文档描述 | 最大500字符 |
-| keywords | Array | 否 | 关键词标签 | 最多10个关键词 |
+| keywords | String | 否 | 关键词标签（逗号分隔） | 如："导数,微积分,极限" |
 
 **成功响应：**
 ```json
@@ -660,55 +770,27 @@ Content-Type: application/json
   "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "keywords": ["导数", "微积分", "极限"],
   "uploadedAt": "2024-01-01T10:00:00",
-  "downloadUrl": "https://example.com/files/doc_123456.docx"
+  "downloadUrl": "/api/files/download/doc_123456"
 }
 ```
 
-### 3.2 学术图片素材上传
-
-**接口描述：** 上传高等教育教学图片素材（图表、公式、实验图等）
-
-**请求信息：**
-- **URL：** `POST /api/materials/upload/image`
-- **Content-Type：** `multipart/form-data`
-- **认证：** 需要JWT Token
-
-**请求参数：**
-| 参数名 | 类型 | 必填 | 说明 | 限制 |
-|--------|------|------|------|------|
-| file | File | 是 | 图片文件 | 支持jpg/png/gif/svg，最大10MB |
-| subject | String | 否 | 学科分类 | 如：高等数学、物理学、化学等 |
-| imageType | String | 否 | 图片类型 | formula/chart/diagram/experiment |
-| description | String | 否 | 图片描述 | 最大200字符 |
-| tags | Array | 否 | 标签数组 | 如：["微积分", "导数", "图像"] |
-| courseLevel | String | 否 | 适用课程层次 | 本科/研究生/博士 |
-
-**成功响应：**
+**错误响应：**
 ```json
-HTTP/1.1 200 OK
+HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
 {
-  "id": "img_123456",
-  "filename": "derivative_graph.png",
-  "originalName": "导数函数图像.png",
-  "subject": "高等数学",
-  "imageType": "chart",
-  "description": "导数函数的几何意义图解",
-  "tags": ["导数", "几何意义", "切线"],
-  "courseLevel": "本科",
-  "size": 1024000,
-  "width": 1920,
-  "height": 1080,
-  "uploadedAt": "2024-01-01T10:00:00",
-  "thumbnailUrl": "https://example.com/thumbnails/img_123456_thumb.jpg",
-  "downloadUrl": "https://example.com/images/img_123456.png"
+  "timestamp": "2024-01-01T10:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "不支持的文件类型",
+  "path": "/api/materials/upload/document"
 }
 ```
 
-### 3.3 学术语音素材上传
+### 3.2 学术语音素材上传及转文字
 
-**接口描述：** 上传学术讲座、课程录音等语音素材并转换为文字
+**接口描述：** 基于Spring AI Alibaba AudioTranscriptionModel的语音上传和转文字功能
 
 **请求信息：**
 - **URL：** `POST /api/materials/upload/audio`
@@ -717,6 +799,114 @@ Content-Type: application/json
 
 **请求参数：**
 | 参数名 | 类型 | 必填 | 说明 | 限制 |
+|--------|------|------|------|------|
+| file | File | 是 | 语音文件 | 支持mp3/wav/m4a/flac，最大100MB |
+| transcriptionMode | String | 否 | 转录模式 | sync/async，默认sync |
+| needTranscription | Boolean | 否 | 是否需要语音转文字 | 默认true |
+| subject | String | 否 | 学科分类 | - |
+| audioType | String | 否 | 音频类型 | lecture/seminar/discussion/interview |
+| description | String | 否 | 语音描述 | 最大200字符 |
+| speaker | String | 否 | 主讲人 | 教授姓名或职称 |
+| language | String | 否 | 语言 | zh/en，默认zh |
+
+**同步转录成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "id": "audio_123456",
+  "filename": "calculus_lecture.mp3",
+  "originalName": "微积分专题讲座.mp3",
+  "subject": "高等数学",
+  "audioType": "lecture",
+  "description": "微积分基本定理专题讲座",
+  "speaker": "张教授",
+  "duration": 3600,
+  "size": 25600000,
+  "language": "zh",
+  "uploadedAt": "2024-01-01T10:00:00",
+  "downloadUrl": "/api/files/download/audio_123456",
+  "transcription": {
+    "text": "今天我们来深入探讨微积分基本定理，这是连接微分和积分的重要桥梁...",
+    "confidence": 0.96,
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 5.2,
+        "text": "今天我们来深入探讨微积分基本定理"
+      }
+    ]
+  },
+  "keyPoints": ["微积分基本定理", "牛顿-莱布尼茨公式", "定积分计算"]
+}
+```
+
+**异步转录成功响应：**
+```json
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+
+{
+  "id": "audio_123456",
+  "filename": "calculus_lecture.mp3",
+  "taskId": "transcription_task_789012",
+  "status": "processing",
+  "message": "语音转录任务已启动",
+  "estimatedTime": 120,
+  "uploadedAt": "2024-01-01T10:00:00",
+  "statusUrl": "/api/tasks/transcription_task_789012/status"
+}
+```
+
+### 3.3 语音转录任务状态查询
+
+**接口描述：** 查询异步语音转录任务状态
+
+**请求信息：**
+- **URL：** `GET /api/tasks/{taskId}/status`
+- **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| taskId | String | 是 | 任务ID |
+
+**处理中响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "taskId": "transcription_task_789012",
+  "status": "processing",
+  "progress": 45,
+  "message": "正在处理语音转录",
+  "startedAt": "2024-01-01T10:00:00"
+}
+```
+
+**完成响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "taskId": "transcription_task_789012",
+  "status": "completed",
+  "progress": 100,
+  "result": {
+    "audioId": "audio_123456",
+    "transcription": {
+      "text": "完整的转录文本内容...",
+      "confidence": 0.94,
+      "duration": 3600
+    }
+  },
+  "startedAt": "2024-01-01T10:00:00",
+  "completedAt": "2024-01-01T10:02:00"
+}
+```
 |--------|------|------|------|------|
 | file | File | 是 | 语音文件 | 支持mp3/wav/m4a/flac，最大200MB |
 | needTranscription | Boolean | 否 | 是否需要语音转文字 | 默认true |
@@ -749,11 +939,11 @@ Content-Type: application/json
 }
 ```
 
-## 4. AI资源自动制作模块（待实现）
+## 4. AI资源自动制作模块
 
 ### 4.1 生成学术PPT课件
 
-**接口描述：** 基于高等教育课程主题自动生成专业PPT课件
+**接口描述：** 基于Spring AI Alibaba ChatClient和Function Calling，自动生成专业PPT课件
 
 **请求信息：**
 - **URL：** `POST /api/ai/generate/ppt`
@@ -765,26 +955,28 @@ Content-Type: application/json
 |--------|------|------|------|------|
 | topic | String | 是 | 课件主题 | "微积分基本定理" |
 | subject | String | 是 | 学科 | "高等数学" |
-| courseLevel | String | 是 | 课程层次 | "本科/研究生/博士" |
-| slideCount | Integer | 否 | 幻灯片数量 | 25 |
+| courseLevel | String | 是 | 课程层次 | "undergraduate/graduate/doctoral" |
+| slideCount | Integer | 否 | 幻灯片数量，默认20 | 25 |
 | style | String | 否 | 课件风格 | "academic/professional/interactive" |
 | includeFormulas | Boolean | 否 | 是否包含数学公式 | true |
 | includeProofs | Boolean | 否 | 是否包含证明过程 | true |
-| targetAudience | String | 否 | 目标受众 | "undergraduate/graduate" |
+| targetAudience | String | 否 | 目标受众 | "mathematics_major/engineering" |
 | duration | Integer | 否 | 预期授课时长(分钟) | 90 |
+| language | String | 否 | 语言 | "zh/en"，默认zh |
 
 **请求示例：**
 ```json
 {
   "topic": "微积分基本定理",
   "subject": "高等数学",
-  "courseLevel": "本科",
+  "courseLevel": "undergraduate",
   "slideCount": 25,
   "style": "academic",
   "includeFormulas": true,
   "includeProofs": true,
-  "targetAudience": "undergraduate",
-  "duration": 90
+  "targetAudience": "mathematics_major",
+  "duration": 90,
+  "language": "zh"
 }
 ```
 
@@ -798,21 +990,24 @@ Content-Type: application/json
   "message": "学术PPT生成任务已启动",
   "estimatedTime": 300,
   "status": "processing",
+  "progress": 0,
   "preview": {
     "outline": [
       "1. 引言与历史背景",
       "2. 微积分基本定理的表述",
       "3. 定理的几何意义",
       "4. 证明过程详解",
-      "5. 应用实例"
-    ]
-  }
+      "5. 应用实例与练习"
+    ],
+    "estimatedSlides": 25
+  },
+  "statusUrl": "/api/tasks/ppt_task_123456/status"
 }
 ```
 
 ### 4.2 生成学术习题
 
-**接口描述：** 基于高等教育知识点自动生成专业习题
+**接口描述：** 基于Spring AI Alibaba，自动生成专业习题集
 
 **请求信息：**
 - **URL：** `POST /api/ai/generate/quiz`
@@ -824,24 +1019,28 @@ Content-Type: application/json
 |--------|------|------|------|------|
 | topic | String | 是 | 知识点主题 | "线性代数中的特征值" |
 | subject | String | 是 | 学科 | "线性代数" |
-| courseLevel | String | 是 | 课程层次 | "本科/研究生" |
+| courseLevel | String | 是 | 课程层次 | "undergraduate/graduate" |
 | difficulty | String | 否 | 难度等级 | "basic/intermediate/advanced" |
-| questionCount | Integer | 否 | 题目数量 | 15 |
-| questionTypes | Array | 否 | 题型 | ["calculation", "proof", "application", "conceptual"] |
+| questionCount | Integer | 否 | 题目数量，默认10 | 15 |
+| questionTypes | String | 否 | 题型（逗号分隔） | "calculation,proof,application,conceptual" |
 | includeSteps | Boolean | 否 | 是否包含解题步骤 | true |
+| includeAnswers | Boolean | 否 | 是否包含答案 | true |
 | timeLimit | Integer | 否 | 建议完成时间(分钟) | 120 |
+| language | String | 否 | 语言 | "zh/en"，默认zh |
 
 **请求示例：**
 ```json
 {
   "topic": "线性代数中的特征值",
   "subject": "线性代数",
-  "courseLevel": "本科",
+  "courseLevel": "undergraduate",
   "difficulty": "intermediate",
   "questionCount": 15,
-  "questionTypes": ["calculation", "proof", "application"],
+  "questionTypes": "calculation,proof,application",
   "includeSteps": true,
-  "timeLimit": 120
+  "includeAnswers": true,
+  "timeLimit": 120,
+  "language": "zh"
 }
 ```
 
@@ -855,8 +1054,107 @@ Content-Type: application/json
   "message": "学术习题生成任务已启动",
   "estimatedTime": 180,
   "status": "processing",
+  "progress": 0,
   "preview": {
-    "questionTypes": {
+    "questionDistribution": {
+      "calculation": 8,
+      "proof": 4,
+      "application": 3
+    },
+    "difficultyLevel": "intermediate",
+    "estimatedTime": 120
+  },
+  "statusUrl": "/api/tasks/quiz_task_123456/status"
+}
+```
+
+### 4.3 生成学术讲解文本
+
+**接口描述：** 基于Spring AI Alibaba，生成详细的学术讲解文本
+
+**请求信息：**
+- **URL：** `POST /api/ai/generate/explanation`
+- **Content-Type：** `application/json`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| topic | String | 是 | 知识点主题 | "拉格朗日乘数法" |
+| subject | String | 是 | 学科 | "高等数学" |
+| courseLevel | String | 是 | 课程层次 | "undergraduate/graduate" |
+| style | String | 否 | 讲解风格 | "rigorous/intuitive/applied" |
+| length | String | 否 | 文本长度 | "concise/detailed/comprehensive" |
+| includeExamples | Boolean | 否 | 是否包含实例 | true |
+| includeProofs | Boolean | 否 | 是否包含证明 | true |
+| includeApplications | Boolean | 否 | 是否包含应用场景 | true |
+| targetAudience | String | 否 | 目标受众 | "mathematics_major/engineering" |
+| language | String | 否 | 语言 | "zh/en"，默认zh |
+
+**请求示例：**
+```json
+{
+  "topic": "拉格朗日乘数法",
+  "subject": "高等数学",
+  "courseLevel": "undergraduate",
+  "style": "rigorous",
+  "length": "detailed",
+  "includeExamples": true,
+  "includeProofs": true,
+  "includeApplications": true,
+  "targetAudience": "mathematics_major",
+  "language": "zh"
+}
+```
+
+**同步响应模式（较短文本）：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "content": "# 拉格朗日乘数法详解\n\n## 理论基础\n拉格朗日乘数法是解决约束优化问题的重要数学方法...",
+  "metadata": {
+    "wordCount": 2500,
+    "sections": [
+      "理论基础与动机",
+      "数学表述与定理",
+      "几何直观理解",
+      "算法步骤",
+      "典型应用实例",
+      "相关定理证明"
+    ],
+    "generatedAt": "2024-01-01T10:00:00",
+    "estimatedReadingTime": 12
+  }
+}
+```
+
+**异步响应模式（较长文本）：**
+```json
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+
+{
+  "taskId": "explanation_task_123456",
+  "message": "学术讲解文本生成任务已启动",
+  "estimatedTime": 90,
+  "status": "processing",
+  "progress": 0,
+  "preview": {
+    "sections": [
+      "理论基础与动机",
+      "数学表述与定理",
+      "几何直观理解",
+      "算法步骤",
+      "典型应用实例",
+      "相关定理证明"
+    ],
+    "estimatedLength": "comprehensive"
+  },
+  "statusUrl": "/api/tasks/explanation_task_123456/status"
+}
+```
       "calculation": 8,
       "proof": 4,
       "application": 3
@@ -924,11 +1222,11 @@ Content-Type: application/json
 }
 ```
 
-## 5. 高等教育资源管理模块（待实现）
+## 5. 教学资源管理模块
 
 ### 5.1 获取学术资源列表
 
-**接口描述：** 获取高等教育教学资源列表，支持分页和多维度筛选
+**接口描述：** 基于ResponseEntity标准的资源管理接口，支持分页和多维度筛选
 
 **请求信息：**
 - **URL：** `GET /api/resources`
@@ -937,15 +1235,18 @@ Content-Type: application/json
 **请求参数：**
 | 参数名 | 类型 | 必填 | 说明 | 示例 |
 |--------|------|------|------|------|
-| page | Integer | 否 | 页码 | 1 |
-| limit | Integer | 否 | 每页数量 | 20 |
+| page | Integer | 否 | 页码，从1开始 | 1 |
+| size | Integer | 否 | 每页数量，默认20 | 20 |
 | subject | String | 否 | 学科筛选 | "高等数学" |
-| courseLevel | String | 否 | 课程层次筛选 | "本科/研究生/博士" |
+| courseLevel | String | 否 | 课程层次筛选 | "undergraduate/graduate/doctoral" |
 | keyword | String | 否 | 关键词搜索 | "微积分" |
-| type | String | 否 | 资源类型 | "ppt/quiz/document/paper/video" |
+| resourceType | String | 否 | 资源类型 | "ppt/quiz/document/audio/video" |
 | difficulty | String | 否 | 难度级别 | "basic/intermediate/advanced" |
-| author | String | 否 | 作者筛选 | "张教授" |
-| institution | String | 否 | 机构筛选 | "清华大学" |
+| createdBy | String | 否 | 创建者筛选 | "user_123456" |
+| startDate | String | 否 | 创建开始日期 | "2024-01-01" |
+| endDate | String | 否 | 创建结束日期 | "2024-12-31" |
+| sortBy | String | 否 | 排序字段 | "createdAt/downloadCount/rating" |
+| sortDirection | String | 否 | 排序方向 | "asc/desc" |
 
 **成功响应：**
 ```json
@@ -953,52 +1254,193 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "resources": [
+  "content": [
     {
       "id": "res_123456",
       "title": "微积分基本定理详解PPT",
-      "type": "ppt",
+      "resourceType": "ppt",
       "subject": "高等数学",
-      "courseLevel": "本科",
+      "courseLevel": "undergraduate",
       "difficulty": "intermediate",
       "description": "包含微积分基本定理的证明、几何意义和应用实例",
-      "tags": ["微积分", "基本定理", "牛顿-莱布尼茨公式"],
-      "author": "张教授",
-      "institution": "清华大学数学系",
+      "keywords": ["微积分", "基本定理", "牛顿-莱布尼茨公式"],
+      "createdBy": {
+        "id": "user_123",
+        "username": "张教授",
+        "institution": "清华大学数学系"
+      },
       "downloadCount": 256,
+      "viewCount": 1024,
       "rating": 4.9,
+      "ratingCount": 45,
       "fileSize": 5120000,
-      "language": "zh-CN",
-      "thumbnailUrl": "https://example.com/thumbnails/res_123456.jpg",
-      "downloadUrl": "https://example.com/resources/res_123456.pptx",
+      "language": "zh",
+      "thumbnailUrl": "/api/files/thumbnail/res_123456",
+      "downloadUrl": "/api/files/download/res_123456",
+      "previewUrl": "/api/resources/res_123456/preview",
       "createdAt": "2024-01-01T10:00:00",
       "lastUpdated": "2024-01-15T14:30:00"
     }
   ],
-  "total": 350,
-  "page": 1,
-  "limit": 20,
+  "pageable": {
+    "pageNumber": 0,
+    "pageSize": 20,
+    "sort": {
+      "sorted": true,
+      "unsorted": false,
+      "empty": false
+    }
+  },
+  "totalElements": 350,
   "totalPages": 18,
-  "facets": {
+  "first": true,
+  "last": false,
+  "numberOfElements": 20,
+  "aggregations": {
     "subjects": {"高等数学": 120, "线性代数": 85, "概率论": 65},
-    "courseLevels": {"本科": 200, "研究生": 100, "博士": 50},
-    "types": {"ppt": 150, "document": 100, "quiz": 80, "video": 20}
+    "courseLevels": {"undergraduate": 200, "graduate": 100, "doctoral": 50},
+    "resourceTypes": {"ppt": 150, "document": 100, "quiz": 80, "audio": 30, "video": 20}
   }
 }
 ```
 
-### 5.2 获取学科分类体系
+### 5.2 资源智能分类
 
-**接口描述：** 获取高等教育学科分类和资源类型信息
+**接口描述：** 基于Spring AI Alibaba的智能分类功能，自动为资源分配学科和知识点标签
 
 **请求信息：**
-- **URL：** `GET /api/resources/categories`
+- **URL：** `POST /api/resources/{resourceId}/classify`
+- **Content-Type：** `application/json`
 - **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| resourceId | String | 是 | 资源ID |
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| forceReclassify | Boolean | 否 | 是否强制重新分类 | false |
+| includeSuggestions | Boolean | 否 | 是否包含改进建议 | true |
 
 **成功响应：**
 ```json
 HTTP/1.1 200 OK
 Content-Type: application/json
+
+{
+  "resourceId": "res_123456",
+  "classification": {
+    "primarySubject": "高等数学",
+    "secondarySubjects": ["数学分析", "微积分"],
+    "knowledgePoints": [
+      {
+        "name": "微积分基本定理",
+        "confidence": 0.96,
+        "prerequisites": ["导数概念", "定积分定义"]
+      },
+      {
+        "name": "牛顿-莱布尼茨公式",
+        "confidence": 0.89,
+        "prerequisites": ["原函数概念"]
+      }
+    ],
+    "difficulty": "intermediate",
+    "courseLevel": "undergraduate",
+    "suggestedKeywords": ["微积分", "基本定理", "导数", "积分", "连续函数"],
+    "topicHierarchy": [
+      "数学 > 高等数学 > 微积分 > 积分学 > 微积分基本定理"
+    ]
+  },
+  "suggestions": [
+    {
+      "type": "content_enhancement",
+      "message": "建议增加几何意义的图示说明"
+    },
+    {
+      "type": "prerequisite_clarification",
+      "message": "可以添加导数和定积分概念的回顾"
+    }
+  ],
+  "confidence": 0.94,
+  "processedAt": "2024-01-01T10:00:00"
+}
+```
+
+### 5.3 资源预览
+
+**接口描述：** 获取资源的详细预览信息和内容摘要
+
+**请求信息：**
+- **URL：** `GET /api/resources/{resourceId}/preview`
+- **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| resourceId | String | 是 | 资源ID |
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| includeContent | Boolean | 否 | 是否包含内容摘要 | true |
+| generateSummary | Boolean | 否 | 是否生成AI摘要 | true |
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "resourceId": "res_123456",
+  "title": "微积分基本定理详解PPT",
+  "resourceType": "ppt",
+  "metadata": {
+    "slideCount": 35,
+    "estimatedDuration": 90,
+    "fileSize": 5120000,
+    "language": "zh",
+    "lastModified": "2024-01-15T14:30:00"
+  },
+  "outline": [
+    "1. 引言与历史背景",
+    "2. 微积分基本定理的表述",
+    "3. 定理的几何意义",
+    "4. 严格数学证明",
+    "5. 典型应用实例",
+    "6. 相关定理与推广"
+  ],
+  "summary": {
+    "content": "本PPT系统介绍微积分基本定理，从历史背景到严格证明，再到实际应用，为本科数学专业学生提供完整的理论框架...",
+    "keyPoints": [
+      "微积分基本定理连接了微分与积分",
+      "牛顿-莱布尼茨公式的应用",
+      "连续函数的原函数存在性"
+    ],
+    "generatedBy": "ai",
+    "generatedAt": "2024-01-01T10:00:00"
+  },
+  "prerequisites": ["导数概念", "定积分定义", "连续函数性质"],
+  "learningObjectives": [
+    "理解微积分基本定理的数学表述",
+    "掌握定理的几何意义",
+    "能够应用定理计算定积分"
+  ],
+  "previewImages": [
+    "/api/files/preview/res_123456/slide1",
+    "/api/files/preview/res_123456/slide5",
+    "/api/files/preview/res_123456/slide10"
+  ],
+  "relatedResources": [
+    {
+      "id": "res_789012",
+      "title": "导数应用专题",
+      "similarity": 0.75
+    }
+  ]
+}
+```
 
 {
   "subjects": [
@@ -1106,11 +1548,11 @@ Content-Type: application/json
 }
 ```
 
-## 6. 高等教育RAG知识库模块（待实现）
+## 6. RAG个性化知识库模块
 
 ### 6.1 构建学科知识库
 
-**接口描述：** 基于高等教育教材、论文、讲义等学术资料构建专业RAG知识库
+**接口描述：** 基于Spring AI Alibaba VectorStore和QuestionAnswerAdvisor，构建专业RAG知识库
 
 **请求信息：**
 - **URL：** `POST /api/knowledge/build`
@@ -1120,28 +1562,34 @@ Content-Type: application/json
 **请求参数：**
 | 参数名 | 类型 | 必填 | 说明 | 示例 |
 |--------|------|------|------|------|
-| materials | Array | 是 | 学术资料文件ID列表 | ["doc_123", "paper_456", "textbook_789"] |
+| materialIds | String | 是 | 学术资料文件ID列表（逗号分隔） | "doc_123,paper_456,textbook_789" |
 | subject | String | 是 | 学科领域 | "高等数学" |
-| courseLevel | String | 是 | 课程层次 | "本科/研究生/博士" |
+| courseLevel | String | 是 | 课程层次 | "undergraduate/graduate/doctoral" |
 | name | String | 是 | 知识库名称 | "高等数学本科知识库" |
 | description | String | 否 | 知识库描述 | "涵盖微积分、级数、多元函数等核心内容" |
-| specialization | String | 否 | 专业方向 | "数学专业/工程数学/经济数学" |
-| language | String | 否 | 主要语言 | "zh-CN/en-US" |
+| specialization | String | 否 | 专业方向 | "mathematics_major/engineering_math/economics_math" |
+| language | String | 否 | 主要语言 | "zh/en" |
 | includeProofs | Boolean | 否 | 是否包含定理证明 | true |
-| chunkStrategy | String | 否 | 分块策略 | "semantic/fixed/adaptive" |
+| chunkSize | Integer | 否 | 文档分块大小 | 1000 |
+| chunkOverlap | Integer | 否 | 分块重叠大小 | 200 |
+| enableSimilarityThreshold | Boolean | 否 | 是否启用相似度阈值 | true |
+| similarityThreshold | Double | 否 | 相似度阈值 | 0.7 |
 
 **请求示例：**
 ```json
 {
-  "materials": ["textbook_123456", "lecture_789012", "paper_345678"],
+  "materialIds": "textbook_123456,lecture_789012,paper_345678",
   "subject": "高等数学",
-  "courseLevel": "本科",
+  "courseLevel": "undergraduate",
   "name": "高等数学本科知识库",
   "description": "涵盖极限、导数、积分、级数、多元函数微积分等核心内容",
-  "specialization": "数学专业",
-  "language": "zh-CN",
+  "specialization": "mathematics_major",
+  "language": "zh",
   "includeProofs": true,
-  "chunkStrategy": "semantic"
+  "chunkSize": 1000,
+  "chunkOverlap": 200,
+  "enableSimilarityThreshold": true,
+  "similarityThreshold": 0.75
 }
 ```
 
@@ -1155,6 +1603,242 @@ Content-Type: application/json
   "knowledgeBaseId": "kb_123456",
   "message": "学科知识库构建任务已启动",
   "estimatedTime": 900,
+  "status": "processing",
+  "progress": 0,
+  "preview": {
+    "materialCount": 3,
+    "estimatedChunks": 1500,
+    "knowledgeAreas": ["极限理论", "微分学", "积分学", "级数理论"],
+    "processingSteps": [
+      "文档解析与预处理",
+      "语义分块与向量化",
+      "向量存储构建",
+      "索引优化"
+    ]
+  },
+  "statusUrl": "/api/tasks/kb_build_123456/status"
+}
+```
+
+### 6.2 学术知识检索
+
+**接口描述：** 基于Spring AI Alibaba VectorStore的语义搜索和知识检索
+
+**请求信息：**
+- **URL：** `GET /api/knowledge/search`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| query | String | 是 | 查询内容 | "微积分基本定理的几何意义" |
+| knowledgeBaseId | String | 否 | 知识库ID | "kb_123456" |
+| subject | String | 否 | 学科范围 | "高等数学" |
+| topK | Integer | 否 | 返回结果数量，默认5 | 10 |
+| similarityThreshold | Double | 否 | 最小相关度阈值 | 0.7 |
+| includeProofs | Boolean | 否 | 是否包含证明内容 | true |
+| courseLevel | String | 否 | 课程层次筛选 | "undergraduate/graduate" |
+| filterMetadata | String | 否 | 元数据过滤条件 | "difficulty:intermediate" |
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "id": "chunk_123456",
+      "content": "微积分基本定理揭示了微分与积分之间的根本联系。从几何角度看，该定理表明函数图像下方的面积（定积分）与该函数的原函数（不定积分）之间存在直接关系...",
+      "metadata": {
+        "source": "《数学分析》第四版 - 华东师范大学",
+        "chapter": "第五章 定积分",
+        "section": "5.3 微积分基本定理",
+        "pageNumber": 156,
+        "documentId": "textbook_123456",
+        "knowledgePoints": ["微积分基本定理", "几何意义", "牛顿-莱布尼茨公式"],
+        "difficulty": "intermediate",
+        "courseLevel": "undergraduate",
+        "hasProof": true
+      },
+      "similarity": 0.96,
+      "distance": 0.04
+    },
+    {
+      "id": "chunk_789012",
+      "content": "从历史角度来看，牛顿和莱布尼茨独立发现了微积分基本定理，这一发现被认为是数学史上最重要的成就之一...",
+      "metadata": {
+        "source": "《微积分的历史》- 学术论文集",
+        "documentId": "paper_345678",
+        "knowledgePoints": ["数学史", "牛顿", "莱布尼茨"],
+        "difficulty": "basic",
+        "courseLevel": "undergraduate"
+      },
+      "similarity": 0.88,
+      "distance": 0.12
+    }
+  ],
+  "pagination": {
+    "total": 8,
+    "limit": 10,
+    "offset": 0
+  },
+  "query": "微积分基本定理的几何意义",
+  "knowledgeBaseId": "kb_123456",
+  "searchTime": 0.23,
+  "suggestions": [
+    "微积分基本定理证明",
+    "定积分的几何意义",
+    "牛顿-莱布尼茨公式应用"
+  ],
+  "relatedConcepts": [
+    "定积分与面积的关系",
+    "原函数的存在性",
+    "连续函数的性质"
+  ]
+}
+```
+
+### 6.3 基于RAG的智能问答
+
+**接口描述：** 基于Spring AI Alibaba QuestionAnswerAdvisor的增强问答功能
+
+**请求信息：**
+- **URL：** `POST /api/knowledge/chat`
+- **Content-Type：** `application/json`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| query | String | 是 | 用户问题 | "请详细解释微积分基本定理" |
+| knowledgeBaseId | String | 否 | 知识库ID | "kb_123456" |
+| conversationId | String | 否 | 会话ID，保持上下文连续性 | "conv_123456" |
+| answerMode | String | 否 | 回答模式 | "detailed/concise/tutorial" |
+| includeReferences | Boolean | 否 | 是否包含参考来源 | true |
+| topK | Integer | 否 | 检索文档数量 | 5 |
+| similarityThreshold | Double | 否 | 相似度阈值 | 0.7 |
+| language | String | 否 | 回答语言 | "zh/en" |
+
+**请求示例：**
+```json
+{
+  "query": "请详细解释微积分基本定理，并给出几何直观理解",
+  "knowledgeBaseId": "kb_123456",
+  "conversationId": "conv_123456",
+  "answerMode": "detailed",
+  "includeReferences": true,
+  "topK": 5,
+  "similarityThreshold": 0.75,
+  "language": "zh"
+}
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "answer": "微积分基本定理是微积分学中最重要的定理之一，它建立了微分与积分之间的根本联系...\n\n从几何角度理解：\n1. 定积分∫[a,b]f(x)dx表示函数f(x)在区间[a,b]上与x轴围成的有向面积\n2. 如果F(x)是f(x)的原函数，那么这个面积等于F(b)-F(a)\n3. 这意味着求面积的问题转化为求原函数的问题...",
+  "conversationId": "conv_123456",
+  "messageId": "msg_789012",
+  "metadata": {
+    "answerMode": "detailed",
+    "retrievedDocuments": 5,
+    "averageSimilarity": 0.91,
+    "processingTime": 1.2,
+    "knowledgeBaseUsed": "kb_123456"
+  },
+  "references": [
+    {
+      "documentId": "textbook_123456",
+      "title": "数学分析第四版",
+      "chapter": "第五章 定积分",
+      "section": "5.3 微积分基本定理",
+      "pageNumber": 156,
+      "relevanceScore": 0.96,
+      "excerpt": "微积分基本定理揭示了微分与积分之间的根本联系..."
+    },
+    {
+      "documentId": "lecture_789012",
+      "title": "微积分基础讲义",
+      "section": "定理的几何意义",
+      "relevanceScore": 0.89,
+      "excerpt": "从几何角度看，该定理表明函数图像下方的面积..."
+    }
+  ],
+  "relatedQuestions": [
+    "牛顿-莱布尼茨公式是如何推导的？",
+    "微积分基本定理的第二形式是什么？",
+    "如何应用基本定理计算定积分？"
+  ],
+  "keyPoints": [
+    "建立了微分与积分的联系",
+    "提供了计算定积分的有效方法",
+    "具有重要的几何意义"
+  ],
+  "timestamp": "2024-01-01T10:00:00"
+}
+```
+
+### 6.4 知识库管理
+
+**接口描述：** 获取用户的知识库列表和管理信息
+
+**请求信息：**
+- **URL：** `GET /api/knowledge/bases`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| page | Integer | 否 | 页码，从0开始 | 0 |
+| size | Integer | 否 | 每页数量 | 20 |
+| subject | String | 否 | 学科筛选 | "高等数学" |
+| courseLevel | String | 否 | 课程层次筛选 | "undergraduate" |
+| status | String | 否 | 状态筛选 | "active/building/error" |
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "content": [
+    {
+      "id": "kb_123456",
+      "name": "高等数学本科知识库",
+      "description": "涵盖微积分、级数、多元函数等核心内容",
+      "subject": "高等数学",
+      "courseLevel": "undergraduate",
+      "specialization": "mathematics_major",
+      "status": "active",
+      "documentCount": 15,
+      "chunkCount": 1532,
+      "totalTokens": 245600,
+      "language": "zh",
+      "createdAt": "2024-01-01T10:00:00",
+      "lastUsed": "2024-01-10T15:30:00",
+      "usageCount": 156,
+      "averageResponseTime": 0.8
+    }
+  ],
+  "pageable": {
+    "pageNumber": 0,
+    "pageSize": 20,
+    "sort": {
+      "sorted": true,
+      "unsorted": false,
+      "empty": false
+    }
+  },
+  "totalElements": 5,
+  "totalPages": 1,
+  "first": true,
+  "last": true
+}
+```
   "status": "processing",
   "preview": {
     "materialCount": 3,
