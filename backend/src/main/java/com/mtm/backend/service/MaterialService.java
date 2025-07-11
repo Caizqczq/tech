@@ -139,14 +139,15 @@ public class MaterialService {
      */
     private MaterialUploadVO performSyncTranscription(MultipartFile file, TeachingMaterial material, AudioUploadDTO uploadDTO) {
         try {
-            // 创建临时文件
-            Path tempFile = Files.createTempFile("audio_", "_" + material.getOriginalName());
-            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            // 使用OSS带签名的公开URL进行转录，确保DashScope能够访问
+            String signedUrl = ossUtil.generateSignedUrl(material.getOssKey(), 2); // 2小时过期
+            
+            log.info("开始音频转录，使用带签名的OSS URL: {}", signedUrl);
             
             // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new FileSystemResource(tempFile.toFile()),
+                    signedUrl,
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()
@@ -160,8 +161,7 @@ public class MaterialService {
             material.setUpdatedAt(new Date());
             teachingMaterialMapper.updateById(material);
             
-            // 清理临时文件
-            Files.deleteIfExists(tempFile);
+            log.info("音频转录成功，材料ID: {}, 转录长度: {} 字符", material.getId(), transcriptionText.length());
             
             return buildAudioResult(material, transcriptionText);
             

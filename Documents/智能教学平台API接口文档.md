@@ -493,6 +493,8 @@ Content-Type: application/json
 | analysisType | String | 是 | 分析类型 | "summary/difficulty/structure" |
 | subject | String | 否 | 学科领域 | "数学" |
 | courseLevel | String | 否 | 课程层次 | "本科" |
+| analysisScope | String | 否 | 分析范围 | "全面分析/重点分析/概要分析" |
+| targetAudience | String | 否 | 目标受众 | "本科生/研究生/教师" |
 
 **请求示例：**
 ```json
@@ -500,7 +502,9 @@ Content-Type: application/json
   "content": "微积分基本定理是连接微分和积分的重要定理...",
   "analysisType": "summary",
   "subject": "数学",
-  "courseLevel": "本科"
+  "courseLevel": "本科",
+  "analysisScope": "全面分析",
+  "targetAudience": "本科生"
 }
 ```
 
@@ -542,16 +546,22 @@ Content-Type: application/json
 |--------|------|------|------|------|
 | content | String | 是 | 需要改进的文本内容 | "本课程旨在介绍微积分的基本概念..." |
 | assistanceType | String | 是 | 辅助类型 | "grammar/style/structure/academic_tone" |
-| targetAudience | String | 否 | 目标受众 | "undergraduate/graduate" |
 | writingType | String | 否 | 写作类型 | "lesson_plan/paper/syllabus" |
+| subject | String | 否 | 学科领域 | "数学" |
+| targetAudience | String | 否 | 目标受众 | "undergraduate/graduate" |
+| language | String | 否 | 语言 | "zh/en" |
+| additionalRequirements | String | 否 | 额外要求 | "增强学术性/提高可读性" |
 
 **请求示例：**
 ```json
 {
   "content": "本课程旨在介绍微积分的基本概念，包括极限、导数和积分。学生将学习这些概念的定义和应用。",
   "assistanceType": "structure",
+  "writingType": "lesson_plan",
+  "subject": "数学",
   "targetAudience": "undergraduate",
-  "writingType": "lesson_plan"
+  "language": "zh",
+  "additionalRequirements": "增强学术性和逻辑性"
 }
 ```
 
@@ -595,10 +605,10 @@ Content-Type: application/json
 | message | String | 是 | 用户消息 | "我想了解如何更好地教授线性代数" |
 | conversationId | String | 否 | 对话会话ID，保持上下文连续性 | "conv_123456" |
 | assistantMode | String | 否 | 助手模式 | "general/teaching/research/writing" |
-| context | Object | 否 | 上下文信息 | - |
-| context.subject | String | 否 | 当前讨论的学科 | "线性代数" |
-| context.courseLevel | String | 否 | 课程层次 | "本科" |
-| context.currentTopic | String | 否 | 当前话题 | "矩阵运算" |
+| subject | String | 否 | 当前讨论的学科 | "线性代数" |
+| courseLevel | String | 否 | 课程层次 | "本科" |
+| streamMode | String | 否 | 流式模式 | "normal/detailed" |
+| contextInfo | String | 否 | 上下文信息 | "当前正在讨论矩阵运算教学方法" |
 
 **请求示例：**
 ```json
@@ -606,11 +616,10 @@ Content-Type: application/json
   "message": "我想了解如何更好地教授线性代数中的矩阵运算，学生总是觉得很抽象",
   "conversationId": "conv_123456",
   "assistantMode": "teaching",
-  "context": {
-    "subject": "线性代数",
-    "courseLevel": "本科",
-    "currentTopic": "矩阵运算"
-  }
+  "subject": "线性代数",
+  "courseLevel": "本科",
+  "streamMode": "detailed",
+  "contextInfo": "当前正在讨论如何提高学生对抽象概念的理解"
 }
 ```
 
@@ -650,9 +659,10 @@ Content-Type: application/json
 | message | String | 是 | 用户消息 | "请解释一下拉格朗日乘数法的原理" |
 | conversationId | String | 否 | 对话会话ID | "conv_123456" |
 | assistantMode | String | 否 | 助手模式 | "general/teaching/research" |
-| streamOptions | Object | 否 | 流式选项 | - |
-| streamOptions.includeThinking | Boolean | 否 | 是否包含思考过程 | false |
-| streamOptions.chunkSize | Integer | 否 | 数据块大小 | 50 |
+| subject | String | 否 | 当前讨论的学科 | "高等数学" |
+| courseLevel | String | 否 | 课程层次 | "本科" |
+| streamMode | String | 否 | 流式模式 | "normal/detailed" |
+| contextInfo | String | 否 | 上下文信息 | "正在学习优化理论相关内容" |
 
 **请求示例：**
 ```json
@@ -660,10 +670,10 @@ Content-Type: application/json
   "message": "请解释一下拉格朗日乘数法的原理，并给出一个具体例子",
   "conversationId": "conv_123456",
   "assistantMode": "teaching",
-  "streamOptions": {
-    "includeThinking": false,
-    "chunkSize": 50
-  }
+  "subject": "高等数学",
+  "courseLevel": "本科",
+  "streamMode": "detailed",
+  "contextInfo": "正在学习多元函数优化理论"
 }
 ```
 
