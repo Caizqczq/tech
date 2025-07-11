@@ -18,7 +18,7 @@ public class TranscriptionTask {
     @TableId(type = IdType.INPUT)
     private String taskId;
     
-    private String materialId;
+    private String resourceId; // 改为resourceId以保持一致性
     private String transcriptionMode;
     private String status;
     private Integer progress;

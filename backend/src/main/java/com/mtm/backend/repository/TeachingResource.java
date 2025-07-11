@@ -12,8 +12,8 @@ import java.util.Date;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@TableName("teaching_materials")
-public class TeachingMaterial {
+@TableName("teaching_resources")
+public class TeachingResource {
     
     @TableId(type = IdType.INPUT)
     private String id;
@@ -23,7 +23,7 @@ public class TeachingMaterial {
     private String ossKey;
     private String contentType;
     private Long fileSize;
-    private String materialType;
+    private String resourceType; // 改为resourceType以符合接口文档
     
     // 教学相关元数据
     private String title;
@@ -39,6 +39,11 @@ public class TeachingMaterial {
     private String audioType;
     private String speaker;
     private String transcriptionText;
+    
+    // 新增字段以支持接口文档要求
+    private Boolean isVectorized; // 是否已向量化
+    private String processingStatus; // 处理状态：processing/completed/failed
+    private String extractedKeywords; // 自动提取的关键词
     
     // 所有者
     private Integer userId;

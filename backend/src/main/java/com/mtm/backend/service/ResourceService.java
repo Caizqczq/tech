@@ -1,0 +1,671 @@
+package com.mtm.backend.service;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.mtm.backend.model.DTO.AudioUploadDTO;
+import com.mtm.backend.model.DTO.BatchUploadDTO;
+import com.mtm.backend.model.DTO.DocumentUploadDTO;
+import com.mtm.backend.model.DTO.ResourceQueryDTO;
+import com.mtm.backend.model.VO.ResourceUploadVO;
+import com.mtm.backend.model.VO.ResourceDetailVO;
+import com.mtm.backend.model.VO.ResourceListVO;
+import com.mtm.backend.model.VO.TranscriptionTaskVO;
+import com.mtm.backend.model.VO.BatchUploadResultVO;
+import com.mtm.backend.model.VO.SemanticSearchResultVO;
+import com.mtm.backend.repository.TeachingResource;
+import com.mtm.backend.repository.TranscriptionTask;
+import com.mtm.backend.repository.mapper.TeachingResourceMapper;
+import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
+import com.mtm.backend.utils.OssUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
+import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
+import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * 智能教学资源管理服务
+ * 符合接口文档模块5的规范要求
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ResourceService {
+    
+    private final TeachingResourceMapper teachingResourceMapper;
+    private final TranscriptionTaskMapper transcriptionTaskMapper;
+    private final OssUtil ossUtil;
+    private final AudioTranscriptionModel audioTranscriptionModel;
+    
+    /**
+     * 上传学术文档
+     */
+    public ResourceUploadVO uploadDocument(MultipartFile file, DocumentUploadDTO uploadDTO, Integer userId) throws IOException {
+        String resourceId = generateResourceId();
+        
+        // 上传到OSS
+        String folder = String.format("documents/%d/%s", userId, uploadDTO.getResourceType());
+        String ossKey = ossUtil.uploadFile(file, folder);
+        
+        // 保存到数据库
+        TeachingResource resource = new TeachingResource();
+        resource.setId(resourceId);
+        resource.setOriginalName(file.getOriginalFilename());
+        resource.setStoredFilename(extractFilenameFromOssKey(ossKey));
+        resource.setOssKey(ossKey);
+        resource.setContentType(file.getContentType());
+        resource.setFileSize(file.getSize());
+        resource.setResourceType("document");
+        resource.setTitle(uploadDTO.getTitle() != null ? uploadDTO.getTitle() : file.getOriginalFilename());
+        resource.setDescription(uploadDTO.getDescription());
+        resource.setSubject(uploadDTO.getSubject());
+        resource.setCourseLevel(uploadDTO.getCourseLevel());
+        resource.setDocumentType(uploadDTO.getResourceType()); // 使用resourceType字段
+        resource.setKeywords(uploadDTO.getKeywords());
+        resource.setIsVectorized(uploadDTO.getAutoVectorize());
+        resource.setProcessingStatus("completed");
+        resource.setUserId(userId);
+        resource.setCreatedAt(new Date());
+        resource.setUpdatedAt(new Date());
+        
+        teachingResourceMapper.insert(resource);
+        
+        // 如果开启自动提取关键词，这里可以调用AI服务
+        List<String> extractedKeywords = new ArrayList<>();
+        if (uploadDTO.getAutoExtractKeywords()) {
+            // TODO: 实现自动关键词提取
+            extractedKeywords = Arrays.asList("函数", "连续性", "可导性");
+        }
+        
+        // 构建返回结果
+        ResourceUploadVO result = new ResourceUploadVO();
+        result.setId(resourceId);
+        result.setFilename(resource.getStoredFilename());
+        result.setOriginalName(resource.getOriginalName());
+        result.setSubject(resource.getSubject());
+        result.setCourseLevel(resource.getCourseLevel());
+        result.setResourceType(resource.getDocumentType());
+        result.setSize(resource.getFileSize());
+        result.setContentType(resource.getContentType());
+        result.setKeywords(resource.getKeywords() != null ? Arrays.asList(resource.getKeywords().split(",")) : new ArrayList<>());
+        result.setExtractedKeywords(extractedKeywords);
+        result.setUploadedAt(resource.getCreatedAt());
+        result.setDownloadUrl(ossUtil.generateUrl(ossKey));
+        result.setIsVectorized(resource.getIsVectorized());
+        result.setProcessingStatus(resource.getProcessingStatus());
+        
+        return result;
+    }
+    
+    /**
+     * 上传音频文件及转录
+     */
+    public Object uploadAudio(MultipartFile file, AudioUploadDTO uploadDTO, Integer userId) throws IOException {
+        String resourceId = generateResourceId();
+        
+        // 上传到OSS
+        String folder = String.format("audio/%d/%s", userId, uploadDTO.getResourceType() != null ? uploadDTO.getResourceType() : "general");
+        String ossKey = ossUtil.uploadFile(file, folder);
+        
+        // 保存基本信息到数据库
+        TeachingResource resource = new TeachingResource();
+        resource.setId(resourceId);
+        resource.setOriginalName(file.getOriginalFilename());
+        resource.setStoredFilename(extractFilenameFromOssKey(ossKey));
+        resource.setOssKey(ossKey);
+        resource.setContentType(file.getContentType());
+        resource.setFileSize(file.getSize());
+        resource.setResourceType("audio");
+        resource.setSubject(uploadDTO.getSubject());
+        resource.setDescription(uploadDTO.getDescription());
+        resource.setLanguage(uploadDTO.getLanguage());
+        resource.setAudioType(uploadDTO.getResourceType());
+        resource.setSpeaker(uploadDTO.getSpeaker());
+        resource.setIsVectorized(uploadDTO.getAutoVectorize());
+        resource.setProcessingStatus("completed");
+        resource.setUserId(userId);
+        resource.setCreatedAt(new Date());
+        resource.setUpdatedAt(new Date());
+        
+        teachingResourceMapper.insert(resource);
+        
+        // 如果需要转录
+        if (uploadDTO.getNeedTranscription()) {
+            if ("sync".equals(uploadDTO.getTranscriptionMode())) {
+                return performSyncTranscription(file, resource, uploadDTO);
+            } else {
+                return performAsyncTranscription(resource, uploadDTO);
+            }
+        } else {
+            // 不需要转录，直接返回音频信息
+            return buildAudioResult(resource, null);
+        }
+    }
+    
+    /**
+     * 批量上传资源
+     */
+    public BatchUploadResultVO uploadBatch(MultipartFile[] files, BatchUploadDTO uploadDTO, Integer userId) {
+        String batchId = generateBatchId();
+        int successCount = 0;
+        int failedCount = 0;
+        List<Map<String, Object>> results = new ArrayList<>();
+        
+        for (MultipartFile file : files) {
+            try {
+                String resourceId = generateResourceId();
+                
+                // 根据文件类型决定上传方式
+                String contentType = file.getContentType();
+                if (contentType != null && contentType.startsWith("audio/")) {
+                    // 音频文件
+                    AudioUploadDTO audioDTO = new AudioUploadDTO();
+                    audioDTO.setSubject(uploadDTO.getSubject());
+                    audioDTO.setCourseLevel(uploadDTO.getCourseLevel());
+                    audioDTO.setAutoVectorize(uploadDTO.getAutoVectorize());
+                    audioDTO.setNeedTranscription(false); // 批量上传不进行转录
+                    audioDTO.setResourceType("general");
+                    audioDTO.setLanguage("zh");
+                    
+                    uploadAudio(file, audioDTO, userId);
+                    
+                    Map<String, Object> fileResult = new HashMap<>();
+                    fileResult.put("filename", file.getOriginalFilename());
+                    fileResult.put("status", "success");
+                    fileResult.put("resourceId", resourceId);
+                    results.add(fileResult);
+                    successCount++;
+                } else {
+                    // 文档文件
+                    DocumentUploadDTO docDTO = new DocumentUploadDTO();
+                    docDTO.setSubject(uploadDTO.getSubject());
+                    docDTO.setCourseLevel(uploadDTO.getCourseLevel());
+                    docDTO.setAutoVectorize(uploadDTO.getAutoVectorize());
+                    docDTO.setResourceType("textbook"); // 默认类型
+                    docDTO.setAutoExtractKeywords(false); // 批量上传不自动提取关键词
+                    
+                    uploadDocument(file, docDTO, userId);
+                    
+                    Map<String, Object> fileResult = new HashMap<>();
+                    fileResult.put("filename", file.getOriginalFilename());
+                    fileResult.put("status", "success");
+                    fileResult.put("resourceId", resourceId);
+                    results.add(fileResult);
+                    successCount++;
+                }
+            } catch (Exception e) {
+                log.error("批量上传文件失败: {}", file.getOriginalFilename(), e);
+                Map<String, Object> fileResult = new HashMap<>();
+                fileResult.put("filename", file.getOriginalFilename());
+                fileResult.put("status", "failed");
+                fileResult.put("error", e.getMessage());
+                results.add(fileResult);
+                failedCount++;
+            }
+        }
+        
+        BatchUploadResultVO result = new BatchUploadResultVO();
+        result.setBatchId(batchId);
+        result.setTotalFiles(files.length);
+        result.setSuccessCount(successCount);
+        result.setFailedCount(failedCount);
+        result.setResults(results);
+        result.setProcessingStatus("completed");
+        
+        return result;
+    }
+    
+    /**
+     * 分页查询教学资源
+     */
+    public Map<String, Object> getResources(ResourceQueryDTO queryDTO, Pageable pageable, Integer userId) {
+        try {
+            // 构建查询条件
+            QueryWrapper<TeachingResource> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("user_id", userId);
+            
+            if (queryDTO.getResourceType() != null && !queryDTO.getResourceType().trim().isEmpty()) {
+                queryWrapper.and(wrapper -> wrapper
+                    .eq("document_type", queryDTO.getResourceType())
+                    .or()
+                    .eq("audio_type", queryDTO.getResourceType())
+                );
+            }
+            
+            if (queryDTO.getSubject() != null && !queryDTO.getSubject().trim().isEmpty()) {
+                queryWrapper.eq("subject", queryDTO.getSubject());
+            }
+            
+            if (queryDTO.getCourseLevel() != null && !queryDTO.getCourseLevel().trim().isEmpty()) {
+                queryWrapper.eq("course_level", queryDTO.getCourseLevel());
+            }
+            
+            if (queryDTO.getKeywords() != null && !queryDTO.getKeywords().trim().isEmpty()) {
+                queryWrapper.and(wrapper -> wrapper
+                    .like("title", queryDTO.getKeywords())
+                    .or()
+                    .like("description", queryDTO.getKeywords())
+                    .or()
+                    .like("keywords", queryDTO.getKeywords())
+                );
+            }
+            
+            // 排序
+            Sort sort = pageable.getSort();
+            if (sort.isSorted()) {
+                for (Sort.Order order : sort) {
+                    String property = order.getProperty();
+                    if ("createdAt".equals(property)) {
+                        property = "created_at";
+                    } else if ("updatedAt".equals(property)) {
+                        property = "updated_at";
+                    }
+                    
+                    if (order.isAscending()) {
+                        queryWrapper.orderByAsc(property);
+                    } else {
+                        queryWrapper.orderByDesc(property);
+                    }
+                }
+            } else {
+                queryWrapper.orderByDesc("created_at");
+            }
+            
+            // 分页查询
+            Page<TeachingResource> pageInfo = new Page<>(pageable.getPageNumber(), pageable.getPageSize());
+            IPage<TeachingResource> materialPage = teachingResourceMapper.selectPage(pageInfo, queryWrapper);
+            
+            // 转换为VO
+            List<ResourceListVO> resourceList = materialPage.getRecords().stream()
+                    .map(this::convertToResourceListVO)
+                    .collect(Collectors.toList());
+            
+            Map<String, Object> pageableInfo = new HashMap<>();
+            pageableInfo.put("pageNumber", materialPage.getCurrent() - 1); // Spring Data使用0开始
+            pageableInfo.put("pageSize", materialPage.getSize());
+            pageableInfo.put("totalElements", materialPage.getTotal());
+            pageableInfo.put("totalPages", materialPage.getPages());
+            
+            return Map.of(
+                "content", resourceList,
+                "pageable", pageableInfo
+            );
+            
+        } catch (Exception e) {
+            log.error("查询教学资源失败", e);
+            throw new RuntimeException("查询教学资源失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 语义搜索资源
+     */
+    public SemanticSearchResultVO searchResourcesSemantic(String query, String subject, String courseLevel, 
+                                                         Integer topK, Double threshold, Integer userId) {
+        try {
+            // TODO: 实现基于Spring AI Alibaba VectorStore的语义搜索
+            // 这里暂时返回模拟数据
+            List<Map<String, Object>> mockResults = new ArrayList<>();
+            
+            // 模拟搜索结果
+            Map<String, Object> result1 = new HashMap<>();
+            Map<String, Object> resource1 = new HashMap<>();
+            resource1.put("id", "res_123456");
+            resource1.put("title", "微积分基本定理详解");
+            resource1.put("subject", "高等数学");
+            resource1.put("resourceType", "lesson_plan");
+            
+            result1.put("resource", resource1);
+            result1.put("similarity", 0.96);
+            result1.put("relevantContent", "微积分基本定理揭示了微分与积分之间的根本联系...");
+            
+            mockResults.add(result1);
+            
+            SemanticSearchResultVO searchResult = new SemanticSearchResultVO();
+            searchResult.setResults(mockResults);
+            searchResult.setQuery(query);
+            searchResult.setTotalResults(mockResults.size());
+            searchResult.setSearchTime(0.23);
+            
+            return searchResult;
+            
+        } catch (Exception e) {
+            log.error("语义搜索失败", e);
+            throw new RuntimeException("语义搜索失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取资源详情
+     */
+    public ResourceDetailVO getResourceDetail(String resourceId, Integer userId) {
+        try {
+            // 查询资源
+            TeachingResource material = teachingResourceMapper.selectById(resourceId);
+            if (material == null) {
+                throw new RuntimeException("资源不存在");
+            }
+            
+            // 验证权限
+            if (!material.getUserId().equals(userId)) {
+                throw new RuntimeException("无权访问该资源");
+            }
+            
+            return convertToResourceDetailVO(material);
+            
+        } catch (Exception e) {
+            log.error("获取资源详情失败", e);
+            throw new RuntimeException("获取资源详情失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除教学资源
+     */
+    public void deleteResource(String resourceId, Integer userId) {
+        try {
+            // 查询资源
+            TeachingResource material = teachingResourceMapper.selectById(resourceId);
+            if (material == null) {
+                throw new RuntimeException("资源不存在");
+            }
+            
+            // 验证权限
+            if (!material.getUserId().equals(userId)) {
+                throw new RuntimeException("无权删除该资源");
+            }
+            
+            // 删除OSS文件
+            try {
+                ossUtil.deleteFile(material.getOssKey());
+            } catch (Exception e) {
+                log.warn("删除OSS文件失败: {}", e.getMessage());
+            }
+            
+            // 删除数据库记录
+            teachingResourceMapper.deleteById(resourceId);
+            
+            // 如果是音频，删除相关转录任务
+            if ("audio".equals(resource.getResourceType())) {
+                QueryWrapper<TranscriptionTask> taskQuery = new QueryWrapper<>();
+                taskQuery.eq("resource_id", resourceId); // 修改字段名
+                transcriptionTaskMapper.delete(taskQuery);
+            }
+            
+        } catch (Exception e) {
+            log.error("删除资源失败", e);
+            throw new RuntimeException("删除资源失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取资源下载链接
+     */
+    public String getResourceDownloadUrl(String resourceId, Integer userId) {
+        try {
+            // 查询资源
+            TeachingResource material = teachingResourceMapper.selectById(resourceId);
+            if (material == null) {
+                throw new RuntimeException("资源不存在");
+            }
+            
+            // 验证权限
+            if (!material.getUserId().equals(userId)) {
+                throw new RuntimeException("无权访问该资源");
+            }
+            
+            // 生成下载链接
+            return ossUtil.generateUrl(material.getOssKey());
+            
+        } catch (Exception e) {
+            log.error("获取下载链接失败", e);
+            throw new RuntimeException("获取下载链接失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取资源统计信息
+     */
+    public Map<String, Object> getResourceStatistics(Integer userId) {
+        try {
+            // 总资源数
+            QueryWrapper<TeachingResource> totalQuery = new QueryWrapper<>();
+            totalQuery.eq("user_id", userId);
+            Long totalResources = teachingResourceMapper.selectCount(totalQuery);
+            
+            // 按类型统计
+            Map<String, Long> typeStats = new HashMap<>();
+            typeStats.put("lesson_plan", getResourceCountByType(userId, "lesson_plan"));
+            typeStats.put("paper", getResourceCountByType(userId, "paper"));
+            typeStats.put("lecture", getResourceCountByType(userId, "lecture"));
+            
+            // 按学科统计
+            List<Map<String, Object>> subjectStats = getSubjectStatistics(userId);
+            
+            // 知识库数量（暂时返回0）
+            Long knowledgeBaseCount = 0L;
+            
+            // 向量化资源数
+            QueryWrapper<TeachingResource> vectorizedQuery = new QueryWrapper<>();
+            vectorizedQuery.eq("user_id", userId);
+            vectorizedQuery.eq("is_vectorized", true);
+            Long vectorizedResources = teachingResourceMapper.selectCount(vectorizedQuery);
+            
+            // 今日上传数
+            QueryWrapper<TeachingResource> todayQuery = new QueryWrapper<>();
+            todayQuery.eq("user_id", userId);
+            todayQuery.ge("created_at", new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000));
+            Long todayUploads = teachingResourceMapper.selectCount(todayQuery);
+            
+            return Map.of(
+                "totalResources", totalResources,
+                "typeStatistics", typeStats,
+                "subjectStatistics", subjectStats,
+                "knowledgeBaseCount", knowledgeBaseCount,
+                "vectorizedResources", vectorizedResources,
+                "todayUploads", todayUploads
+            );
+            
+        } catch (Exception e) {
+            log.error("获取资源统计失败", e);
+            throw new RuntimeException("获取资源统计失败: " + e.getMessage());
+        }
+    }
+    
+    // ============ 私有辅助方法 ============
+    
+    /**
+     * 同步转录
+     */
+    private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource material, AudioUploadDTO uploadDTO) {
+        try {
+            // 等待一秒确保文件上传完成
+            Thread.sleep(1000);
+            
+            // 检查OSS文件是否存在
+            if (!ossUtil.doesObjectExist(material.getOssKey())) {
+                throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
+            }
+            
+            // 直接使用文件字节数组，避免文件系统问题
+            byte[] audioBytes = file.getBytes();
+            String originalFilename = file.getOriginalFilename();
+            
+            // 创建ByteArrayResource，并设置文件名
+            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                @Override
+                public String getFilename() {
+                    return originalFilename;
+                }
+            };
+            
+            log.info("音频文件大小: {} bytes, 文件名: {}", audioBytes.length, originalFilename);
+            
+            // 执行转录
+            AudioTranscriptionResponse response = audioTranscriptionModel.call(
+                new AudioTranscriptionPrompt(
+                    audioResource,
+                    DashScopeAudioTranscriptionOptions.builder()
+                            .withModel("paraformer-realtime-v2")
+                            .build()
+                )
+            );
+            
+            String transcriptionText = response.getResult().getOutput();
+            
+            // 更新数据库
+            material.setTranscriptionText(transcriptionText);
+            material.setUpdatedAt(new Date());
+            teachingResourceMapper.updateById(material);
+            
+            log.info("音频转录成功，资源ID: {}, 转录长度: {} 字符", material.getId(), transcriptionText.length());
+            
+            return buildAudioResult(material, transcriptionText);
+            
+        } catch (Exception e) {
+            log.error("同步转录失败", e);
+            throw new RuntimeException("音频转录失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 异步转录
+     */
+    private TranscriptionTaskVO performAsyncTranscription(TeachingResource material, AudioUploadDTO uploadDTO) {
+        String taskId = generateTaskId();
+        
+        // 创建转录任务
+        TranscriptionTask task = new TranscriptionTask();
+        task.setTaskId(taskId);
+        task.setResourceId(resource.getId());
+        task.setTranscriptionMode("async");
+        task.setStatus("processing");
+        task.setProgress(0);
+        task.setEstimatedTime(120); // 预估2分钟
+        task.setStartedAt(new Date());
+        
+        transcriptionTaskMapper.insert(task);
+        
+        // TODO: 这里应该启动异步任务处理转录
+        // 暂时返回任务信息
+        TranscriptionTaskVO result = new TranscriptionTaskVO();
+        result.setTaskId(taskId);
+        result.setResourceId(resource.getId());
+        result.setMessage("语音转录任务已启动");
+        result.setEstimatedTime(120);
+        result.setStatus("processing");
+        result.setProgress(0);
+        result.setStatusUrl("/api/tasks/" + taskId + "/status");
+        
+        return result;
+    }
+    
+    private ResourceUploadVO buildAudioResult(TeachingResource material, String transcriptionText) {
+        ResourceUploadVO result = new ResourceUploadVO();
+        result.setId(material.getId());
+        result.setFilename(material.getStoredFilename());
+        result.setOriginalName(material.getOriginalName());
+        result.setSubject(material.getSubject());
+        result.setResourceType(material.getAudioType());
+        result.setDescription(material.getDescription());
+        result.setSpeaker(material.getSpeaker());
+        result.setDuration(material.getDuration());
+        result.setSize(material.getFileSize());
+        result.setLanguage(material.getLanguage());
+        result.setUploadedAt(material.getCreatedAt());
+        result.setDownloadUrl(ossUtil.generateUrl(material.getOssKey()));
+        result.setTranscription(transcriptionText);
+        result.setIsVectorized(material.getIsVectorized());
+        result.setProcessingStatus(material.getProcessingStatus());
+        
+        return result;
+    }
+    
+    private String generateResourceId() {
+        return "res_" + UUID.randomUUID().toString().replace("-", "");
+    }
+    
+    private String generateTaskId() {
+        return "task_" + UUID.randomUUID().toString().replace("-", "");
+    }
+    
+    private String generateBatchId() {
+        return "batch_" + UUID.randomUUID().toString().replace("-", "");
+    }
+    
+    private String extractFilenameFromOssKey(String ossKey) {
+        return ossKey.substring(ossKey.lastIndexOf("/") + 1);
+    }
+    
+    private ResourceListVO convertToResourceListVO(TeachingResource material) {
+        return ResourceListVO.builder()
+                .id(material.getId())
+                .title(material.getTitle())
+                .subject(material.getSubject())
+                .courseLevel(material.getCourseLevel())
+                .resourceType("document".equals(resource.getResourceType()) ? resource.getDocumentType() : resource.getAudioType())
+                .fileSize(material.getFileSize())
+                .keywords(material.getKeywords() != null ? Arrays.asList(material.getKeywords().split(",")) : new ArrayList<>())
+                .isVectorized(material.getIsVectorized())
+                .createdAt(material.getCreatedAt())
+                .build();
+    }
+    
+    private ResourceDetailVO convertToResourceDetailVO(TeachingResource material) {
+        return ResourceDetailVO.builder()
+                .id(material.getId())
+                .title(material.getTitle())
+                .description(material.getDescription())
+                .subject(material.getSubject())
+                .courseLevel(material.getCourseLevel())
+                .resourceType("document".equals(resource.getResourceType()) ? resource.getDocumentType() : resource.getAudioType())
+                .originalName(material.getOriginalName())
+                .fileSize(material.getFileSize())
+                .contentType(material.getContentType())
+                .keywords(material.getKeywords() != null ? Arrays.asList(material.getKeywords().split(",")) : new ArrayList<>())
+                .downloadUrl(ossUtil.generateUrl(material.getOssKey()))
+                .transcriptionText(material.getTranscriptionText())
+                .isVectorized(material.getIsVectorized())
+                .createdAt(material.getCreatedAt())
+                .updatedAt(material.getUpdatedAt())
+                .build();
+    }
+    
+    private Long getResourceCountByType(Integer userId, String resourceType) {
+        QueryWrapper<TeachingResource> query = new QueryWrapper<>();
+        query.eq("user_id", userId);
+        query.and(wrapper -> wrapper
+            .eq("document_type", resourceType)
+            .or()
+            .eq("audio_type", resourceType)
+        );
+        return teachingResourceMapper.selectCount(query);
+    }
+    
+    private List<Map<String, Object>> getSubjectStatistics(Integer userId) {
+        // 这里可以通过自定义SQL查询来获取更详细的统计信息
+        // 为了简化，暂时返回基本统计
+        return Arrays.asList(
+            Map.of("subject", "高等数学", "count", getResourceCountBySubject(userId, "高等数学")),
+            Map.of("subject", "线性代数", "count", getResourceCountBySubject(userId, "线性代数"))
+        );
+    }
+    
+    private Long getResourceCountBySubject(Integer userId, String subject) {
+        QueryWrapper<TeachingResource> query = new QueryWrapper<>();
+        query.eq("user_id", userId);
+        query.eq("subject", subject);
+        return teachingResourceMapper.selectCount(query);
+    }
+}

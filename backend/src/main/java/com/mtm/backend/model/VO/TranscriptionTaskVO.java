@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class TranscriptionTaskVO {
     private String taskId;
-    private String materialId;
+    private String resourceId; // 改为resourceId以保持一致性
     private String message;
     private Integer estimatedTime;
     private String status;
