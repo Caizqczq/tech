@@ -20,13 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
-import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
 
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -138,6 +138,7 @@ public class MaterialService {
      * 同步转录
      */
     private MaterialUploadVO performSyncTranscription(MultipartFile file, TeachingMaterial material, AudioUploadDTO uploadDTO) {
+        Path tempFile = null;
         try {
             // 等待一秒确保文件上传完成
             Thread.sleep(1000);
@@ -147,14 +148,21 @@ public class MaterialService {
                 throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
             }
             
-            // 生成OSS签名URL
-            String signedUrl = ossUtil.generateSignedUrl(material.getOssKey(), 2);
-            log.info("生成签名URL成功: {}", signedUrl);
+            // 创建临时文件
+            String extension = material.getOriginalName().substring(material.getOriginalName().lastIndexOf('.'));
+            tempFile = Files.createTempFile("audio_transcription_", extension);
+            
+            // 从MultipartFile复制到临时文件
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            
+            log.info("创建临时文件成功: {}", tempFile.toString());
             
             // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new UrlResource(new URL(signedUrl)),
+                    new FileSystemResource(tempFile.toFile()),
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()
@@ -175,6 +183,16 @@ public class MaterialService {
         } catch (Exception e) {
             log.error("同步转录失败", e);
             throw new RuntimeException("音频转录失败: " + e.getMessage());
+        } finally {
+            // 清理临时文件
+            if (tempFile != null && Files.exists(tempFile)) {
+                try {
+                    Files.delete(tempFile);
+                    log.info("临时文件清理成功: {}", tempFile.toString());
+                } catch (IOException e) {
+                    log.warn("临时文件清理失败: {}", e.getMessage());
+                }
+            }
         }
     }
     
