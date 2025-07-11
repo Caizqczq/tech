@@ -64,7 +64,7 @@ public class TeachingChatService {
             // 发送请求
             ChatResponse response = chatClient.prompt(userQuery)
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call();
+                    .call().chatResponse();
             
             // 保存对话记录
             saveConversation(conversationId, userId, "教学建议对话", "teaching_advice", adviceDTO);
@@ -112,7 +112,7 @@ public class TeachingChatService {
             // 发送请求
             ChatResponse response = chatClient.prompt(analysisQuery)
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call();
+                    .call().chatResponse();
             
             // 保存对话记录
             saveConversation(conversationId, userId, "课程内容分析", "content_analysis", analysisDTO);
@@ -160,7 +160,7 @@ public class TeachingChatService {
             // 发送请求
             ChatResponse response = chatClient.prompt(writingQuery)
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call();
+                    .call().chatResponse();
             
             // 保存对话记录
             saveConversation(conversationId, userId, "学术写作辅助", "writing_assistance", writingDTO);
@@ -207,7 +207,7 @@ public class TeachingChatService {
             // 发送请求
             ChatResponse response = chatClient.prompt(assistantDTO.getMessage())
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call();
+                    .call().chatResponse();
             
             // 保存对话记录
             if (assistantDTO.getConversationId() == null) {

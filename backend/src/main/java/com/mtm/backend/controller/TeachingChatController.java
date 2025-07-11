@@ -28,7 +28,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chat")
-@RequiredArgsConstructor
 @Slf4j
 public class TeachingChatController {
     

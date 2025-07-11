@@ -77,7 +77,7 @@ public class ChatController {
             
             ChatResponse response = dashScopeChatClient.prompt(query)
                     .advisors(a->a.param(ChatMemory.CONVERSATION_ID,chatId))
-                    .call();
+                    .call().chatResponse();
             
             Map<String, Object> result = new HashMap<>();
             result.put("content", response.getResult().getOutput().getText());
@@ -151,7 +151,7 @@ public class ChatController {
                             .withTemperature(0.7)
                             .build());
 
-            ChatResponse response = dashScopeChatClient.prompt(chatPrompt).call();
+            ChatResponse response = dashScopeChatClient.prompt(chatPrompt).call().chatResponse();
             
             Map<String, Object> result = new HashMap<>();
             result.put("content", response.getResult().getOutput().getText());
@@ -212,7 +212,7 @@ public class ChatController {
                             .build());
 
             // 调用模型进行图片分析
-            ChatResponse response = dashScopeChatClient.prompt(chatPrompt).call();
+            ChatResponse response = dashScopeChatClient.prompt(chatPrompt).call().chatResponse();
             
             Map<String, Object> result = new HashMap<>();
             result.put("content", response.getResult().getOutput().getText());
