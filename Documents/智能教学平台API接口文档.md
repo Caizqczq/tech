@@ -859,7 +859,243 @@ Content-Type: application/json
 }
 ```
 
-### 3.3 语音转录任务状态查询
+### 3.3 分页查询教学素材列表
+
+**接口描述：** 分页查询用户上传的教学素材列表，支持多维度筛选和排序
+
+**请求信息：**
+- **URL：** `GET /api/materials`
+- **认证：** 需要JWT Token
+
+**请求参数：**
+| 参数名 | 类型 | 必填 | 说明 | 示例 |
+|--------|------|------|------|------|
+| materialType | String | 否 | 素材类型筛选 | document/audio |
+| subject | String | 否 | 学科分类筛选 | "高等数学" |
+| courseLevel | String | 否 | 课程层次筛选 | undergraduate/graduate/doctoral |
+| documentType | String | 否 | 文档类型筛选 | lesson_plan/syllabus/paper/textbook/exercise |
+| audioType | String | 否 | 音频类型筛选 | lecture/seminar/discussion/interview |
+| keywords | String | 否 | 关键词搜索 | "微积分" |
+| page | Integer | 否 | 页码，默认1 | 1 |
+| limit | Integer | 否 | 每页数量，默认10，最大100 | 10 |
+| sortBy | String | 否 | 排序字段，默认created_at | created_at/file_size/title |
+| sortOrder | String | 否 | 排序方向，默认desc | asc/desc |
+
+**请求示例：**
+```
+GET /api/materials?materialType=document&subject=高等数学&page=1&limit=10&sortBy=created_at&sortOrder=desc
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "materials": [
+    {
+      "materialId": "mat_123456",
+      "originalName": "高等数学教案.pdf",
+      "materialType": "document",
+      "contentType": "application/pdf",
+      "fileSize": 2048576,
+      "title": "微积分基础教案",
+      "subject": "高等数学",
+      "courseLevel": "undergraduate",
+      "documentType": "lesson_plan",
+      "audioType": null,
+      "createdAt": "2024-01-01T10:00:00"
+    },
+    {
+      "materialId": "mat_789012",
+      "originalName": "数学讲座录音.mp3",
+      "materialType": "audio",
+      "contentType": "audio/mpeg",
+      "fileSize": 52428800,
+      "title": "微积分专题讲座",
+      "subject": "高等数学",
+      "courseLevel": "undergraduate",
+      "documentType": null,
+      "audioType": "lecture",
+      "createdAt": "2024-01-01T09:30:00"
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "pageSize": 10,
+    "total": 25,
+    "totalPages": 3
+  }
+}
+```
+
+### 3.4 获取教学素材详情
+
+**接口描述：** 获取指定教学素材的详细信息，包括下载链接和转录文本
+
+**请求信息：**
+- **URL：** `GET /api/materials/{materialId}`
+- **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| materialId | String | 是 | 素材ID |
+
+**请求示例：**
+```
+GET /api/materials/mat_123456
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "materialId": "mat_123456",
+  "originalName": "微积分讲座录音.mp3",
+  "materialType": "audio",
+  "contentType": "audio/mpeg",
+  "fileSize": 52428800,
+  "downloadUrl": "https://tech-czq.oss-cn-beijing.aliyuncs.com/audio/...",
+  "title": "微积分基本定理专题讲座",
+  "description": "深入讲解微积分基本定理的数学表述、几何意义和实际应用",
+  "subject": "高等数学",
+  "courseLevel": "undergraduate",
+  "documentType": null,
+  "keywords": "微积分,基本定理,导数,积分",
+  "duration": 3600,
+  "language": "zh",
+  "audioType": "lecture",
+  "speaker": "张教授",
+  "transcriptionText": "今天我们来深入探讨微积分基本定理，这是连接微分和积分的重要桥梁。首先，让我们回顾一下导数的定义...",
+  "createdAt": "2024-01-01T10:00:00",
+  "updatedAt": "2024-01-01T10:30:00"
+}
+```
+
+**错误响应：**
+```json
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+
+{
+  "timestamp": "2024-01-01T10:00:00",
+  "status": 404,
+  "error": "Not Found",
+  "message": "素材不存在或无权访问",
+  "path": "/api/materials/mat_123456"
+}
+```
+
+### 3.5 删除教学素材
+
+**接口描述：** 删除指定的教学素材，同时删除OSS中的文件和相关转录任务
+
+**请求信息：**
+- **URL：** `DELETE /api/materials/{materialId}`
+- **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| materialId | String | 是 | 素材ID |
+
+**请求示例：**
+```
+DELETE /api/materials/mat_123456
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "message": "素材删除成功",
+  "materialId": "mat_123456"
+}
+```
+
+### 3.6 获取素材下载链接
+
+**接口描述：** 获取教学素材的临时下载链接，链接有效期1小时
+
+**请求信息：**
+- **URL：** `GET /api/materials/{materialId}/download`
+- **认证：** 需要JWT Token
+
+**路径参数：**
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| materialId | String | 是 | 素材ID |
+
+**请求示例：**
+```
+GET /api/materials/mat_123456/download
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "materialId": "mat_123456",
+  "downloadUrl": "https://tech-czq.oss-cn-beijing.aliyuncs.com/audio/...",
+  "expiresIn": 3600
+}
+```
+
+### 3.7 获取用户素材统计信息
+
+**接口描述：** 获取当前用户的教学素材统计信息，包括总数、类型分布、学科分布等
+
+**请求信息：**
+- **URL：** `GET /api/materials/statistics`
+- **认证：** 需要JWT Token
+
+**请求示例：**
+```
+GET /api/materials/statistics
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+**成功响应：**
+```json
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "totalMaterials": 25,
+  "typeStatistics": {
+    "document": 15,
+    "audio": 10
+  },
+  "subjectStatistics": [
+    {
+      "subject": "高等数学",
+      "count": 12
+    },
+    {
+      "subject": "线性代数",
+      "count": 8
+    },
+    {
+      "subject": "概率论",
+      "count": 5
+    }
+  ],
+  "todayMaterials": 3
+}
+```
+
+### 3.8 语音转录任务状态查询
 
 **接口描述：** 查询异步语音转录任务状态
 
