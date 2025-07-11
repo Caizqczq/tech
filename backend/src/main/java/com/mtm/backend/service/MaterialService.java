@@ -136,23 +136,14 @@ public class MaterialService {
      */
     private MaterialUploadVO performSyncTranscription(MultipartFile file, TeachingMaterial material, AudioUploadDTO uploadDTO) {
         try {
-            // 短暂等待，确保文件在OSS上完全可用
-            Thread.sleep(1000);
+            // 创建临时文件
+            Path tempFile = Files.createTempFile("audio_", "_" + material.getOriginalName());
+            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
             
-            // 使用OSS带签名的HTTPS URL进行转录，确保DashScope能够访问
-            String signedUrl = ossUtil.generateSignedUrl(material.getOssKey(), 2); // 2小时过期
-            
-            log.info("开始音频转录，使用带签名的OSS HTTPS URL: {}", signedUrl);
-            
-            // 验证文件是否存在
-            if (!ossUtil.doesObjectExist(material.getOssKey())) {
-                throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
-            }
-            
-            // 执行转录 - 使用UrlResource包装URL字符串
+            // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new UrlResource(new URL(signedUrl)),
+                    new UrlResource(signedUrl)
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()
