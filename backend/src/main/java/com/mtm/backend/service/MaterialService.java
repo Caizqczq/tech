@@ -20,16 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -139,14 +136,23 @@ public class MaterialService {
      */
     private MaterialUploadVO performSyncTranscription(MultipartFile file, TeachingMaterial material, AudioUploadDTO uploadDTO) {
         try {
-            // 创建临时文件
-            Path tempFile = Files.createTempFile("audio_", "_" + material.getOriginalName());
-            Files.copy(file.getInputStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            // 短暂等待，确保文件在OSS上完全可用
+            Thread.sleep(1000);
             
-            // 执行转录
+            // 使用OSS带签名的HTTPS URL进行转录，确保DashScope能够访问
+            String signedUrl = ossUtil.generateSignedUrl(material.getOssKey(), 2); // 2小时过期
+            
+            log.info("开始音频转录，使用带签名的OSS HTTPS URL: {}", signedUrl);
+            
+            // 验证文件是否存在
+            if (!ossUtil.doesObjectExist(material.getOssKey())) {
+                throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
+            }
+            
+            // 执行转录 - 使用UrlResource包装URL字符串
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new FileSystemResource(tempFile.toFile()),
+                    new UrlResource(new URL(signedUrl)),
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()
@@ -160,8 +166,7 @@ public class MaterialService {
             material.setUpdatedAt(new Date());
             teachingMaterialMapper.updateById(material);
             
-            // 清理临时文件
-            Files.deleteIfExists(tempFile);
+            log.info("音频转录成功，材料ID: {}, 转录长度: {} 字符", material.getId(), transcriptionText.length());
             
             return buildAudioResult(material, transcriptionText);
             

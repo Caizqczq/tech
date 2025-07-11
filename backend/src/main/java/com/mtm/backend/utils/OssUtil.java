@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.UUID;
 
 @Component
@@ -71,6 +72,42 @@ public class OssUtil {
         } else {
             return "https://" + ossConfig.getBucketName() + "." + ossConfig.getEndpoint() + "/" + ossKey;
         }
+    }
+    
+    /**
+     * 生成带签名的临时访问URL
+     * @param ossKey OSS对象key
+     * @param expireHours 过期时间（小时），默认1小时
+     * @return 带签名的临时访问URL
+     */
+    public String generateSignedUrl(String ossKey, int expireHours) {
+        try {
+            // 设置过期时间 - 修正时间计算
+            Date expiration = new Date(System.currentTimeMillis() + (long) expireHours * 60 * 60 * 1000);
+            
+            // 生成带签名的URL
+            String signedUrl = ossClient.generatePresignedUrl(ossConfig.getBucketName(), ossKey, expiration).toString();
+            
+            // 确保URL使用HTTPS协议，DashScope要求HTTPS
+            if (signedUrl.startsWith("http://")) {
+                signedUrl = signedUrl.replace("http://", "https://");
+            }
+            
+            log.info("生成带签名HTTPS URL: {}, 过期时间: {}", signedUrl, expiration);
+            return signedUrl;
+        } catch (Exception e) {
+            log.error("生成带签名URL失败: {}", e.getMessage(), e);
+            throw new RuntimeException("生成带签名URL失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 生成带签名的临时访问URL（默认1小时过期）
+     * @param ossKey OSS对象key
+     * @return 带签名的临时访问URL
+     */
+    public String generateSignedUrl(String ossKey) {
+        return generateSignedUrl(ossKey, 1);
     }
     
     /**
