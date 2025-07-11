@@ -20,13 +20,15 @@ import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.FileUrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -149,7 +151,9 @@ public class MaterialService {
             }
             
             // 创建临时文件
-            String extension = material.getOriginalName().substring(material.getOriginalName().lastIndexOf('.'));
+            String extension = material.getOriginalName().contains(".") 
+                ? material.getOriginalName().substring(material.getOriginalName().lastIndexOf('.'))
+                : ".tmp";
             tempFile = Files.createTempFile("audio_transcription_", extension);
             
             // 从MultipartFile复制到临时文件
@@ -159,10 +163,14 @@ public class MaterialService {
             
             log.info("创建临时文件成功: {}", tempFile.toString());
             
+          
+            File tempFileObj = tempFile.toFile();
+            FileUrlResource audioResource = new FileUrlResource(tempFileObj.toURI().toString());
+            
             // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new FileSystemResource(tempFile.toFile()),
+                    audioResource,
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()

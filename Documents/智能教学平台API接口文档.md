@@ -949,6 +949,7 @@ Content-Type: application/json
 **接口描述：** 基于Spring AI Alibaba AudioTranscriptionModel的语音上传和转文字功能
 
 **请求信息：**
+
 - **URL：** `POST /api/materials/upload/audio`
 - **Content-Type：** `multipart/form-data`
 - **认证：** 需要JWT Token
@@ -1183,6 +1184,7 @@ Content-Type: application/json
 - **认证：** 需要JWT Token
 
 **路径参数：**
+
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | materialId | String | 是 | 素材ID |
@@ -1514,8 +1516,8 @@ Content-Type: application/json
     "estimatedDifficulty": "intermediate"
   }
 }
-```
 
+```
 ## 8. [规划中] 教学资源管理模块
 
 ### 8.1 获取学术资源列表
