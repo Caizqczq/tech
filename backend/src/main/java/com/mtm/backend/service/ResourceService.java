@@ -172,7 +172,7 @@ public class ResourceService {
                     // 音频文件
                     AudioUploadDTO audioDTO = new AudioUploadDTO();
                     audioDTO.setSubject(uploadDTO.getSubject());
-                    audioDTO.setCourseLevel(uploadDTO.getCourseLevel());
+//                    audioDTO.setCourseLevel(uploadDTO.getCourseLevel());
                     audioDTO.setAutoVectorize(uploadDTO.getAutoVectorize());
                     audioDTO.setNeedTranscription(false); // 批量上传不进行转录
                     audioDTO.setResourceType("general");
@@ -284,18 +284,18 @@ public class ResourceService {
             
             // 分页查询
             Page<TeachingResource> pageInfo = new Page<>(pageable.getPageNumber(), pageable.getPageSize());
-            IPage<TeachingResource> materialPage = teachingResourceMapper.selectPage(pageInfo, queryWrapper);
+            IPage<TeachingResource> resourcePage = teachingResourceMapper.selectPage(pageInfo, queryWrapper);
             
             // 转换为VO
-            List<ResourceListVO> resourceList = materialPage.getRecords().stream()
+            List<ResourceListVO> resourceList = resourcePage.getRecords().stream()
                     .map(this::convertToResourceListVO)
                     .collect(Collectors.toList());
             
             Map<String, Object> pageableInfo = new HashMap<>();
-            pageableInfo.put("pageNumber", materialPage.getCurrent() - 1); // Spring Data使用0开始
-            pageableInfo.put("pageSize", materialPage.getSize());
-            pageableInfo.put("totalElements", materialPage.getTotal());
-            pageableInfo.put("totalPages", materialPage.getPages());
+            pageableInfo.put("pageNumber", resourcePage.getCurrent() - 1); // Spring Data使用0开始
+            pageableInfo.put("pageSize", resourcePage.getSize());
+            pageableInfo.put("totalElements", resourcePage.getTotal());
+            pageableInfo.put("totalPages", resourcePage.getPages());
             
             return Map.of(
                 "content", resourceList,
@@ -352,17 +352,17 @@ public class ResourceService {
     public ResourceDetailVO getResourceDetail(String resourceId, Integer userId) {
         try {
             // 查询资源
-            TeachingResource material = teachingResourceMapper.selectById(resourceId);
-            if (material == null) {
+            TeachingResource resource = teachingResourceMapper.selectById(resourceId);
+            if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
             // 验证权限
-            if (!material.getUserId().equals(userId)) {
+            if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权访问该资源");
             }
             
-            return convertToResourceDetailVO(material);
+            return convertToResourceDetailVO(resource);
             
         } catch (Exception e) {
             log.error("获取资源详情失败", e);
@@ -376,19 +376,19 @@ public class ResourceService {
     public void deleteResource(String resourceId, Integer userId) {
         try {
             // 查询资源
-            TeachingResource material = teachingResourceMapper.selectById(resourceId);
-            if (material == null) {
+            TeachingResource resource = teachingResourceMapper.selectById(resourceId);
+            if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
             // 验证权限
-            if (!material.getUserId().equals(userId)) {
+            if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权删除该资源");
             }
             
             // 删除OSS文件
             try {
-                ossUtil.deleteFile(material.getOssKey());
+                ossUtil.deleteFile(resource.getOssKey());
             } catch (Exception e) {
                 log.warn("删除OSS文件失败: {}", e.getMessage());
             }
@@ -415,18 +415,18 @@ public class ResourceService {
     public String getResourceDownloadUrl(String resourceId, Integer userId) {
         try {
             // 查询资源
-            TeachingResource material = teachingResourceMapper.selectById(resourceId);
-            if (material == null) {
+            TeachingResource resource = teachingResourceMapper.selectById(resourceId);
+            if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
             // 验证权限
-            if (!material.getUserId().equals(userId)) {
+            if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权访问该资源");
             }
             
             // 生成下载链接
-            return ossUtil.generateUrl(material.getOssKey());
+            return ossUtil.generateUrl(resource.getOssKey());
             
         } catch (Exception e) {
             log.error("获取下载链接失败", e);
@@ -488,14 +488,14 @@ public class ResourceService {
     /**
      * 同步转录
      */
-    private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource material, AudioUploadDTO uploadDTO) {
+    private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource resource, AudioUploadDTO uploadDTO) {
         try {
             // 等待一秒确保文件上传完成
             Thread.sleep(1000);
             
             // 检查OSS文件是否存在
-            if (!ossUtil.doesObjectExist(material.getOssKey())) {
-                throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
+            if (!ossUtil.doesObjectExist(resource.getOssKey())) {
+                throw new RuntimeException("OSS文件不存在: " + resource.getOssKey());
             }
             
             // 直接使用文件字节数组，避免文件系统问题
@@ -525,13 +525,13 @@ public class ResourceService {
             String transcriptionText = response.getResult().getOutput();
             
             // 更新数据库
-            material.setTranscriptionText(transcriptionText);
-            material.setUpdatedAt(new Date());
-            teachingResourceMapper.updateById(material);
+            resource.setTranscriptionText(transcriptionText);
+            resource.setUpdatedAt(new Date());
+            teachingResourceMapper.updateById(resource);
             
-            log.info("音频转录成功，资源ID: {}, 转录长度: {} 字符", material.getId(), transcriptionText.length());
+            log.info("音频转录成功，资源ID: {}, 转录长度: {} 字符", resource.getId(), transcriptionText.length());
             
-            return buildAudioResult(material, transcriptionText);
+            return buildAudioResult(resource, transcriptionText);
             
         } catch (Exception e) {
             log.error("同步转录失败", e);
@@ -542,7 +542,7 @@ public class ResourceService {
     /**
      * 异步转录
      */
-    private TranscriptionTaskVO performAsyncTranscription(TeachingResource material, AudioUploadDTO uploadDTO) {
+    private TranscriptionTaskVO performAsyncTranscription(TeachingResource resource, AudioUploadDTO uploadDTO) {
         String taskId = generateTaskId();
         
         // 创建转录任务
@@ -571,23 +571,23 @@ public class ResourceService {
         return result;
     }
     
-    private ResourceUploadVO buildAudioResult(TeachingResource material, String transcriptionText) {
+    private ResourceUploadVO buildAudioResult(TeachingResource resource, String transcriptionText) {
         ResourceUploadVO result = new ResourceUploadVO();
-        result.setId(material.getId());
-        result.setFilename(material.getStoredFilename());
-        result.setOriginalName(material.getOriginalName());
-        result.setSubject(material.getSubject());
-        result.setResourceType(material.getAudioType());
-        result.setDescription(material.getDescription());
-        result.setSpeaker(material.getSpeaker());
-        result.setDuration(material.getDuration());
-        result.setSize(material.getFileSize());
-        result.setLanguage(material.getLanguage());
-        result.setUploadedAt(material.getCreatedAt());
-        result.setDownloadUrl(ossUtil.generateUrl(material.getOssKey()));
+        result.setId(resource.getId());
+        result.setFilename(resource.getStoredFilename());
+        result.setOriginalName(resource.getOriginalName());
+        result.setSubject(resource.getSubject());
+        result.setResourceType(resource.getAudioType());
+        result.setDescription(resource.getDescription());
+        result.setSpeaker(resource.getSpeaker());
+        result.setDuration(resource.getDuration());
+        result.setSize(resource.getFileSize());
+        result.setLanguage(resource.getLanguage());
+        result.setUploadedAt(resource.getCreatedAt());
+        result.setDownloadUrl(ossUtil.generateUrl(resource.getOssKey()));
         result.setTranscription(transcriptionText);
-        result.setIsVectorized(material.getIsVectorized());
-        result.setProcessingStatus(material.getProcessingStatus());
+        result.setIsVectorized(resource.getIsVectorized());
+        result.setProcessingStatus(resource.getProcessingStatus());
         
         return result;
     }
@@ -608,37 +608,37 @@ public class ResourceService {
         return ossKey.substring(ossKey.lastIndexOf("/") + 1);
     }
     
-    private ResourceListVO convertToResourceListVO(TeachingResource material) {
+    private ResourceListVO convertToResourceListVO(TeachingResource resource) {
         return ResourceListVO.builder()
-                .id(material.getId())
-                .title(material.getTitle())
-                .subject(material.getSubject())
-                .courseLevel(material.getCourseLevel())
+                .id(resource.getId())
+                .title(resource.getTitle())
+                .subject(resource.getSubject())
+                .courseLevel(resource.getCourseLevel())
                 .resourceType("document".equals(resource.getResourceType()) ? resource.getDocumentType() : resource.getAudioType())
-                .fileSize(material.getFileSize())
-                .keywords(material.getKeywords() != null ? Arrays.asList(material.getKeywords().split(",")) : new ArrayList<>())
-                .isVectorized(material.getIsVectorized())
-                .createdAt(material.getCreatedAt())
+                .fileSize(resource.getFileSize())
+                .keywords(resource.getKeywords() != null ? Arrays.asList(resource.getKeywords().split(",")) : new ArrayList<>())
+                .isVectorized(resource.getIsVectorized())
+                .createdAt(resource.getCreatedAt())
                 .build();
     }
     
-    private ResourceDetailVO convertToResourceDetailVO(TeachingResource material) {
+    private ResourceDetailVO convertToResourceDetailVO(TeachingResource resource) {
         return ResourceDetailVO.builder()
-                .id(material.getId())
-                .title(material.getTitle())
-                .description(material.getDescription())
-                .subject(material.getSubject())
-                .courseLevel(material.getCourseLevel())
+                .id(resource.getId())
+                .title(resource.getTitle())
+                .description(resource.getDescription())
+                .subject(resource.getSubject())
+                .courseLevel(resource.getCourseLevel())
                 .resourceType("document".equals(resource.getResourceType()) ? resource.getDocumentType() : resource.getAudioType())
-                .originalName(material.getOriginalName())
-                .fileSize(material.getFileSize())
-                .contentType(material.getContentType())
-                .keywords(material.getKeywords() != null ? Arrays.asList(material.getKeywords().split(",")) : new ArrayList<>())
-                .downloadUrl(ossUtil.generateUrl(material.getOssKey()))
-                .transcriptionText(material.getTranscriptionText())
-                .isVectorized(material.getIsVectorized())
-                .createdAt(material.getCreatedAt())
-                .updatedAt(material.getUpdatedAt())
+                .originalName(resource.getOriginalName())
+                .fileSize(resource.getFileSize())
+                .contentType(resource.getContentType())
+                .keywords(resource.getKeywords() != null ? Arrays.asList(resource.getKeywords().split(",")) : new ArrayList<>())
+                .downloadUrl(ossUtil.generateUrl(resource.getOssKey()))
+                .transcriptionText(resource.getTranscriptionText())
+                .isVectorized(resource.getIsVectorized())
+                .createdAt(resource.getCreatedAt())
+                .updatedAt(resource.getUpdatedAt())
                 .build();
     }
     
