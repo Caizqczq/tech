@@ -146,7 +146,7 @@ public class MaterialService {
             // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
-                    new UrlResource(tempFile.toUri()),
+                    new UrlResource(signedUrl),
                     DashScopeAudioTranscriptionOptions.builder()
                             .withModel("paraformer-realtime-v2")
                             .build()
