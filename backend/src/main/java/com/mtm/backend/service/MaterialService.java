@@ -20,18 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
-import org.springframework.core.io.FileUrlResource;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -140,7 +135,6 @@ public class MaterialService {
      * 同步转录
      */
     private MaterialUploadVO performSyncTranscription(MultipartFile file, TeachingMaterial material, AudioUploadDTO uploadDTO) {
-        Path tempFile = null;
         try {
             // 等待一秒确保文件上传完成
             Thread.sleep(1000);
@@ -150,22 +144,19 @@ public class MaterialService {
                 throw new RuntimeException("OSS文件不存在: " + material.getOssKey());
             }
             
-            // 创建临时文件
-            String extension = material.getOriginalName().contains(".") 
-                ? material.getOriginalName().substring(material.getOriginalName().lastIndexOf('.'))
-                : ".tmp";
-            tempFile = Files.createTempFile("audio_transcription_", extension);
+            // 直接使用文件字节数组，避免文件系统问题
+            byte[] audioBytes = file.getBytes();
+            String originalFilename = file.getOriginalFilename();
             
-            // 从MultipartFile复制到临时文件
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-            }
+            // 创建ByteArrayResource，并设置文件名
+            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                @Override
+                public String getFilename() {
+                    return originalFilename;
+                }
+            };
             
-            log.info("创建临时文件成功: {}", tempFile.toString());
-            
-          
-            File tempFileObj = tempFile.toFile();
-            FileUrlResource audioResource = new FileUrlResource(tempFileObj.toURI().toString());
+            log.info("音频文件大小: {} bytes, 文件名: {}", audioBytes.length, originalFilename);
             
             // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
@@ -191,16 +182,6 @@ public class MaterialService {
         } catch (Exception e) {
             log.error("同步转录失败", e);
             throw new RuntimeException("音频转录失败: " + e.getMessage());
-        } finally {
-            // 清理临时文件
-            if (tempFile != null && Files.exists(tempFile)) {
-                try {
-                    Files.delete(tempFile);
-                    log.info("临时文件清理成功: {}", tempFile.toString());
-                } catch (IOException e) {
-                    log.warn("临时文件清理失败: {}", e.getMessage());
-                }
-            }
         }
     }
     
