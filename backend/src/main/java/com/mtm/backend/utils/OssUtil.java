@@ -102,4 +102,37 @@ public class OssUtil {
             return false;
         }
     }
+    
+    /**
+     * 生成OSS签名URL
+     * @param ossKey OSS对象key
+     * @param expireHours 过期时间(小时)
+     * @return 签名URL
+     */
+    public String generateSignedUrl(String ossKey, int expireHours) {
+        try {
+            Date expiration = new Date(System.currentTimeMillis() + (long) expireHours * 60 * 60 * 1000);
+            String signedUrl = ossClient.generatePresignedUrl(ossConfig.getBucketName(), ossKey, expiration).toString();
+            
+            // 强制使用HTTPS协议，DashScope API要求HTTPS
+            if (signedUrl.startsWith("http://")) {
+                signedUrl = signedUrl.replace("http://", "https://");
+            }
+            
+            log.info("生成OSS签名URL成功: {} (过期时间: {}小时)", ossKey, expireHours);
+            return signedUrl;
+        } catch (Exception e) {
+            log.error("生成OSS签名URL失败: {}", e.getMessage(), e);
+            throw new RuntimeException("生成OSS签名URL失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 生成OSS签名URL（默认2小时过期）
+     * @param ossKey OSS对象key
+     * @return 签名URL
+     */
+    public String generateSignedUrl(String ossKey) {
+        return generateSignedUrl(ossKey, 2);
+    }
 }
