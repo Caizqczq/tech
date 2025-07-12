@@ -104,24 +104,28 @@ create table chat_messages(
 ) default charset = utf8mb4 comment = "对话消息表";
 
 -- 知识库表（新增，支持模块5的知识库管理功能）
-drop table if exists knowledge_bases;
-create table knowledge_bases(
+drop table if exists knowledge_base;
+create table knowledge_base(
                                id varchar(50) primary key comment '知识库ID',
                                name varchar(200) not null comment '知识库名称',
                                description text comment '知识库描述',
                                subject varchar(100) not null comment '学科领域',
                                course_level enum('undergraduate', 'graduate', 'doctoral') not null comment '课程层次',
-                               vector_store varchar(50) default 'elasticsearch' comment '向量存储类型',
+                               resource_ids text comment '资源ID列表(JSON格式)',
+                               vector_store varchar(50) default 'redis' comment '向量存储类型',
                                chunk_size int default 1000 comment '分块大小',
                                chunk_overlap int default 200 comment '分块重叠',
-                               status enum('building', 'active', 'error') default 'building' comment '知识库状态',
+                               status enum('processing', 'completed', 'failed') default 'processing' comment '知识库状态',
+                               progress int default 0 comment '进度百分比',
                                resource_count int default 0 comment '资源数量',
                                chunk_count int default 0 comment '分块数量',
+                               message varchar(500) comment '状态消息',
                                user_id int not null comment '创建者ID',
                                created_at timestamp default current_timestamp comment '创建时间',
                                updated_at timestamp default current_timestamp on update current_timestamp comment '更新时间',
+                               completed_at timestamp comment '完成时间',
                                last_used timestamp comment '最后使用时间',
-                               
+
                                index idx_user_id (user_id),
                                index idx_subject (subject),
                                index idx_status (status)

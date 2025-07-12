@@ -3,9 +3,13 @@ package com.mtm.backend.controller;
 import com.mtm.backend.model.DTO.AudioUploadDTO;
 import com.mtm.backend.model.DTO.BatchUploadDTO;
 import com.mtm.backend.model.DTO.DocumentUploadDTO;
+import com.mtm.backend.model.DTO.KnowledgeBaseCreateDTO;
+import com.mtm.backend.model.DTO.RAGQueryDTO;
 import com.mtm.backend.model.DTO.ResourceQueryDTO;
 import com.mtm.backend.model.VO.ResourceUploadVO;
 import com.mtm.backend.model.VO.ResourceDetailVO;
+import com.mtm.backend.service.KnowledgeBaseService;
+import com.mtm.backend.service.RAGService;
 import com.mtm.backend.service.ResourceService;
 import com.mtm.backend.utils.ThreadLocalUtil;
 import lombok.RequiredArgsConstructor;
@@ -13,9 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import reactor.core.publisher.Flux;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -31,8 +37,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class ResourceController {
-    
+
     private final ResourceService resourceService;
+    private final KnowledgeBaseService knowledgeBaseService;
+    private final RAGService ragService;
     
     private static final String[] ALLOWED_DOCUMENT_TYPES = {
         "application/pdf",
@@ -464,16 +472,188 @@ public class ResourceController {
             if (userId == null) {
                 return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
             }
-            
+
             Object result = resourceService.getResourceStatistics(userId);
             return ResponseEntity.ok(result);
-            
+
         } catch (Exception e) {
             log.error("获取资源统计失败", e);
             return ResponseEntity.internalServerError().body(createErrorResponse("获取资源统计失败: " + e.getMessage()));
         }
     }
-    
+
+    /**
+     * 5.3.1 构建知识库
+     * POST /api/resources/knowledge-base
+     */
+    @PostMapping("/knowledge-base")
+    public ResponseEntity<?> createKnowledgeBase(@RequestBody KnowledgeBaseCreateDTO createDTO) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            // 参数验证
+            if (createDTO.getName() == null || createDTO.getName().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("知识库名称不能为空"));
+            }
+
+            if (createDTO.getResourceIds() == null || createDTO.getResourceIds().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("资源ID列表不能为空"));
+            }
+
+            if (createDTO.getSubject() == null || createDTO.getSubject().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("学科领域不能为空"));
+            }
+
+            if (createDTO.getCourseLevel() == null || createDTO.getCourseLevel().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("课程层次不能为空"));
+            }
+
+            // 验证courseLevel枚举值
+            if (!Arrays.asList("undergraduate", "graduate", "doctoral").contains(createDTO.getCourseLevel())) {
+                return ResponseEntity.badRequest().body(createErrorResponse("课程层次必须是undergraduate、graduate或doctoral"));
+            }
+
+            Object result = knowledgeBaseService.createKnowledgeBase(createDTO, userId);
+            return ResponseEntity.status(202).body(result); // 202 Accepted
+
+        } catch (Exception e) {
+            log.error("创建知识库失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("创建知识库失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 5.3.2 知识库状态查询
+     * GET /api/resources/knowledge-base/{knowledgeBaseId}/status
+     */
+    @GetMapping("/knowledge-base/{knowledgeBaseId}/status")
+    public ResponseEntity<?> getKnowledgeBaseStatus(@PathVariable String knowledgeBaseId) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            // 参数验证
+            if (knowledgeBaseId == null || knowledgeBaseId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("知识库ID不能为空"));
+            }
+
+            Object result = knowledgeBaseService.getKnowledgeBaseStatus(knowledgeBaseId, userId);
+            return ResponseEntity.ok(result);
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权访问")) {
+                return ResponseEntity.notFound().build();
+            }
+            log.error("查询知识库状态失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("查询知识库状态失败: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("查询知识库状态失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("查询知识库状态失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 5.3.3 知识库列表
+     * GET /api/resources/knowledge-base
+     */
+    @GetMapping("/knowledge-base")
+    public ResponseEntity<?> getKnowledgeBaseList(
+            @PageableDefault(page = 0, size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            Object result = knowledgeBaseService.getKnowledgeBaseList(userId, pageable);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("获取知识库列表失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取知识库列表失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 5.4.1 基于RAG的智能问答
+     * POST /api/resources/qa
+     */
+    @PostMapping("/qa")
+    public ResponseEntity<?> ragQuery(@RequestBody RAGQueryDTO queryDTO) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            // 参数验证
+            if (queryDTO.getQuery() == null || queryDTO.getQuery().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("用户问题不能为空"));
+            }
+
+            // 验证回答模式
+            if (queryDTO.getAnswerMode() != null &&
+                !Arrays.asList("detailed", "concise", "tutorial").contains(queryDTO.getAnswerMode())) {
+                return ResponseEntity.badRequest().body(createErrorResponse("回答模式必须是detailed、concise或tutorial"));
+            }
+
+            // 设置默认值
+            if (queryDTO.getTopK() == null) {
+                queryDTO.setTopK(5);
+            }
+            if (queryDTO.getIncludeReferences() == null) {
+                queryDTO.setIncludeReferences(true);
+            }
+
+            Object result = ragService.ragQuery(queryDTO, userId);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("RAG问答失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("RAG问答失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 5.4.2 流式智能问答
+     * POST /api/resources/qa/stream
+     */
+    @PostMapping(value = "/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> ragQueryStream(@RequestBody RAGQueryDTO queryDTO) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return Flux.error(new RuntimeException("用户未登录"));
+            }
+
+            // 参数验证
+            if (queryDTO.getQuery() == null || queryDTO.getQuery().trim().isEmpty()) {
+                return Flux.error(new RuntimeException("用户问题不能为空"));
+            }
+
+            // 设置默认值
+            if (queryDTO.getTopK() == null) {
+                queryDTO.setTopK(5);
+            }
+
+            return ragService.ragQueryStream(queryDTO, userId);
+
+        } catch (Exception e) {
+            log.error("流式RAG问答失败", e);
+            return Flux.error(new RuntimeException("流式RAG问答失败: " + e.getMessage()));
+        }
+    }
+
     private Map<String, Object> createErrorResponse(String message) {
         Map<String, Object> error = new HashMap<>();
         error.put("timestamp", new Date().toString());

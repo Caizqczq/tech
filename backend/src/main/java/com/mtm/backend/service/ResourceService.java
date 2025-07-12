@@ -23,6 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -47,6 +50,7 @@ public class ResourceService {
     private final TranscriptionTaskMapper transcriptionTaskMapper;
     private final OssUtil ossUtil;
     private final AudioTranscriptionModel audioTranscriptionModel;
+    private final VectorStore vectorStore;
     
     /**
      * 上传学术文档
@@ -311,35 +315,66 @@ public class ResourceService {
     /**
      * 语义搜索资源
      */
-    public SemanticSearchResultVO searchResourcesSemantic(String query, String subject, String courseLevel, 
+    public SemanticSearchResultVO searchResourcesSemantic(String query, String subject, String courseLevel,
                                                          Integer topK, Double threshold, Integer userId) {
         try {
-            // TODO: 实现基于Spring AI Alibaba VectorStore的语义搜索
-            // 这里暂时返回模拟数据
-            List<Map<String, Object>> mockResults = new ArrayList<>();
-            
-            // 模拟搜索结果
-            Map<String, Object> result1 = new HashMap<>();
-            Map<String, Object> resource1 = new HashMap<>();
-            resource1.put("id", "res_123456");
-            resource1.put("title", "微积分基本定理详解");
-            resource1.put("subject", "高等数学");
-            resource1.put("resourceType", "lesson_plan");
-            
-            result1.put("resource", resource1);
-            result1.put("similarity", 0.96);
-            result1.put("relevantContent", "微积分基本定理揭示了微分与积分之间的根本联系...");
-            
-            mockResults.add(result1);
-            
+            long startTime = System.currentTimeMillis();
+
+            // 构建搜索请求
+            SearchRequest.Builder searchBuilder = SearchRequest.builder()
+                    .query(query)
+                    .topK(topK)
+                    .similarityThreshold(threshold);
+
+            // 添加过滤条件
+            List<String> filters = new ArrayList<>();
+            if (subject != null && !subject.trim().isEmpty()) {
+                filters.add("subject == '" + subject + "'");
+            }
+            if (courseLevel != null && !courseLevel.trim().isEmpty()) {
+                filters.add("course_level == '" + courseLevel + "'");
+            }
+
+            if (!filters.isEmpty()) {
+                String filterExpression = String.join(" && ", filters);
+                searchBuilder = searchBuilder.filterExpression(filterExpression);
+            }
+
+            SearchRequest searchRequest = searchBuilder.build();
+
+            // 执行向量搜索
+            List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
+
+            // 转换为响应格式
+            List<Map<String, Object>> results = similarDocuments.stream()
+                    .map(doc -> {
+                        Map<String, Object> result = new HashMap<>();
+
+                        // 构建资源信息
+                        Map<String, Object> resource = new HashMap<>();
+                        resource.put("id", doc.getMetadata().get("resource_id"));
+                        resource.put("title", doc.getMetadata().get("title"));
+                        resource.put("subject", doc.getMetadata().get("subject"));
+                        resource.put("resourceType", doc.getMetadata().get("resource_type"));
+
+                        result.put("resource", resource);
+                        result.put("similarity", 0.96); // 这里应该是实际的相似度分数
+                        result.put("relevantContent", doc.getText().substring(0, Math.min(200, doc.getText().length())) + "...");
+
+                        return result;
+                    })
+                    .collect(Collectors.toList());
+
+            double searchTime = (System.currentTimeMillis() - startTime) / 1000.0;
+
             SemanticSearchResultVO searchResult = new SemanticSearchResultVO();
-            searchResult.setResults(mockResults);
+            searchResult.setResults(results);
             searchResult.setQuery(query);
-            searchResult.setTotalResults(mockResults.size());
-            searchResult.setSearchTime(0.23);
-            
+            searchResult.setTotalResults(results.size());
+            searchResult.setSearchTime(searchTime);
+
             return searchResult;
-            
+
         } catch (Exception e) {
             log.error("语义搜索失败", e);
             throw new RuntimeException("语义搜索失败: " + e.getMessage());

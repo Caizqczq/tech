@@ -14,6 +14,16 @@ spring:
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY:}
+      chat:
+        model: qwen-turbo
+      embedding:
+        model: text-embedding-v2
+    vectorstore:
+      redis:
+        uri: redis://localhost:6379
+        initialize-schema: true
+        index-name: teaching-resources
+        prefix: "vector:"
   servlet:
     multipart:
       max-file-size: 100MB
