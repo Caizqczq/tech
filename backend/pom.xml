@@ -115,6 +115,12 @@
 			<artifactId>mybatis-plus-spring-boot3-starter</artifactId>
 			<version>3.5.12</version>
 		</dependency>
+		<!-- MyBatis-Plus 分页插件依赖 -->
+		<dependency>
+			<groupId>com.baomidou</groupId>
+			<artifactId>mybatis-plus-jsqlparser</artifactId>
+			<version>3.5.12</version>
+		</dependency>
 		<!-- API 包 -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>

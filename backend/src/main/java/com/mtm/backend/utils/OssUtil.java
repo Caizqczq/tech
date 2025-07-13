@@ -1,6 +1,7 @@
 package com.mtm.backend.utils;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.PutObjectRequest;
 import com.aliyun.oss.model.PutObjectResult;
 import com.mtm.backend.config.OssConfig;
@@ -32,33 +33,61 @@ public class OssUtil {
      * @return OSS文件key
      */
     public String uploadFile(MultipartFile file, String folder) throws IOException {
+        log.info("开始上传文件到OSS - 原始文件名: {}, 大小: {} bytes, 文件夹: {}",
+                file.getOriginalFilename(), file.getSize(), folder);
+
+        // 验证文件
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("上传文件不能为空");
+        }
+
         // 生成唯一文件名
         String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null && originalFilename.contains(".") 
-            ? originalFilename.substring(originalFilename.lastIndexOf(".")) 
+        String extension = originalFilename != null && originalFilename.contains(".")
+            ? originalFilename.substring(originalFilename.lastIndexOf("."))
             : "";
-        
+
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String uuid = UUID.randomUUID().toString().replace("-", "");
         String filename = timestamp + "_" + uuid + extension;
-        
+
         // 构建OSS对象key
         String ossKey = folder + "/" + filename;
-        
+
+        log.info("生成OSS Key: {}", ossKey);
+        log.info("使用Bucket: {}", ossConfig.getBucketName());
+
         try (InputStream inputStream = file.getInputStream()) {
             PutObjectRequest putObjectRequest = new PutObjectRequest(
-                ossConfig.getBucketName(), 
-                ossKey, 
+                ossConfig.getBucketName(),
+                ossKey,
                 inputStream
             );
-            
+
+            // 设置文件元数据
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentType(file.getContentType());
+            metadata.setContentLength(file.getSize());
+            putObjectRequest.setMetadata(metadata);
+
+            log.info("开始执行OSS上传操作...");
             PutObjectResult result = ossClient.putObject(putObjectRequest);
             log.info("文件上传成功: {}, ETag: {}", ossKey, result.getETag());
-            
+
             return ossKey;
         } catch (Exception e) {
-            log.error("文件上传失败: {}", e.getMessage(), e);
-            throw new RuntimeException("文件上传失败: " + e.getMessage());
+            log.error("文件上传失败 - OSS Key: {}, 错误信息: {}", ossKey, e.getMessage(), e);
+
+            // 提供更详细的错误信息
+            if (e.getMessage().contains("SignatureDoesNotMatch")) {
+                log.error("OSS签名验证失败，请检查:");
+                log.error("1. AccessKeyId和AccessKeySecret是否正确");
+                log.error("2. 服务器时间是否与阿里云服务器时间同步");
+                log.error("3. Endpoint配置是否正确");
+                log.error("4. Bucket名称是否正确");
+            }
+
+            throw new RuntimeException("文件上传失败: " + e.getMessage(), e);
         }
     }
     
