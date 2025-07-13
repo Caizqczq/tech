@@ -196,8 +196,9 @@ public class TeachingChatService {
             ChatResponse response = chatClient.prompt(assistantDTO.getMessage())
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
-            
+
             // 保存对话记录（消息由Spring AI自动管理）
+            // 只在新对话时保存conversations表记录，避免重复保存
             if (assistantDTO.getConversationId() == null) {
                 saveConversation(conversationId, userId, "智能对话助手", "general_chat", assistantDTO);
             }
@@ -400,8 +401,11 @@ public class TeachingChatService {
     
     private void saveConversation(String conversationId, Integer userId, String title, String scenario, Object contextObj) {
         try {
+            log.debug("开始保存对话记录: conversationId={}, userId={}, title={}, scenario={}",
+                     conversationId, userId, title, scenario);
+
             String contextInfo = objectMapper.writeValueAsString(contextObj);
-            
+
             Conversation conversation = Conversation.builder()
                     .id(conversationId)
                     .userId(userId)
@@ -410,10 +414,17 @@ public class TeachingChatService {
                     .contextInfo(contextInfo)
                     .totalMessages(0)
                     .build();
-            
-            conversationMapper.insert(conversation);
+
+            int result = conversationMapper.insert(conversation);
+            log.debug("对话记录保存结果: result={}, conversationId={}", result, conversationId);
+
+            if (result <= 0) {
+                log.warn("对话记录保存失败，insert返回值为: {}", result);
+            }
         } catch (Exception e) {
-            log.error("保存对话失败", e);
+            log.error("保存对话失败: conversationId={}, userId={}, title={}, scenario={}",
+                     conversationId, userId, title, scenario, e);
+            // 不抛出异常，避免影响主要业务流程
         }
     }
 }

@@ -4,7 +4,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import StatsCards from '@/components/dashboard/StatsCards';
 import CreateProjectButton from '@/components/dashboard/CreateProjectButton';
 import RecentProjects from '@/components/dashboard/RecentProjects';
-import CommunityResources from '@/components/dashboard/CommunityResources';
+import QuickActions from '@/components/dashboard/QuickActions';
 
 const Dashboard = () => {
   return (
@@ -15,7 +15,7 @@ const Dashboard = () => {
         <StatsCards />
         <CreateProjectButton />
         <RecentProjects />
-        <CommunityResources />
+        <QuickActions />
       </main>
     </div>
   );

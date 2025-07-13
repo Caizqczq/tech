@@ -1,7 +1,7 @@
 
-import { ApiResponse, User, LoginRequest, RegisterRequest, Project, CreateProjectRequest, TeachingResource, DashboardStats, AnalyticsData, KnowledgeItem, CommunityPost, Comment } from '@/types/api';
+import { ApiResponse, User, LoginRequest, RegisterRequest, Project, CreateProjectRequest, TeachingResource, DashboardStats, AnalyticsData, KnowledgeItem, ChatMessage, AIGenerationTask, MaterialUpload } from '@/types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8082/api';
 
 class ApiService {
   private async request<T>(
@@ -55,6 +55,131 @@ class ApiService {
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
     return this.request('/auth/me');
+  }
+
+  // AI对话相关
+  async simpleChat(query: string, chatId?: string): Promise<ApiResponse<any>> {
+    const params = new URLSearchParams();
+    if (query) params.append('query', query);
+    if (chatId) params.append('chat-id', chatId);
+    return this.request(`/simple/chat?${params.toString()}`);
+  }
+
+  async streamChat(query: string, chatId?: string): Promise<Response> {
+    const token = localStorage.getItem('auth_token');
+    const params = new URLSearchParams();
+    if (query) params.append('query', query);
+    if (chatId) params.append('chat-id', chatId);
+    
+    return fetch(`${API_BASE_URL}/stream/chat?${params.toString()}`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+  }
+
+  async analyzeImageByUrl(imageUrl: string, prompt?: string): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('imageUrl', imageUrl);
+    if (prompt) formData.append('prompt', prompt);
+    
+    return this.request('/image/analyze/url', {
+      method: 'POST',
+      body: formData,
+      headers: {}, // 让浏览器自动设置Content-Type
+    });
+  }
+
+  async analyzeImageByUpload(file: File, prompt?: string): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (prompt) formData.append('prompt', prompt);
+    
+    return this.request('/image/analyze/upload', {
+      method: 'POST',
+      body: formData,
+      headers: {}, // 让浏览器自动设置Content-Type
+    });
+  }
+
+  // 教学AI对话相关
+  async getTeachingAdvice(data: {
+    query: string;
+    subject?: string;
+    courseLevel?: string;
+    teachingType?: string;
+    currentContext?: string;
+    mode?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/chat/teaching-advice', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async analyzeContent(data: {
+    content: string;
+    analysisType: string;
+    subject?: string;
+    courseLevel?: string;
+    analysisScope?: string;
+    targetAudience?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/chat/content-analysis', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getWritingAssistance(data: {
+    content: string;
+    assistanceType: string;
+    writingType?: string;
+    subject?: string;
+    targetAudience?: string;
+    language?: string;
+    additionalRequirements?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/chat/writing-assistance', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async chatWithAssistant(data: {
+    message: string;
+    conversationId?: string;
+    assistantMode?: string;
+    subject?: string;
+    courseLevel?: string;
+    streamMode?: string;
+    contextInfo?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.request('/chat/assistant', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async streamChatWithAssistant(data: {
+    message: string;
+    conversationId?: string;
+    assistantMode?: string;
+    subject?: string;
+    courseLevel?: string;
+    streamMode?: string;
+    contextInfo?: string;
+  }): Promise<Response> {
+    const token = localStorage.getItem('auth_token');
+    
+    return fetch(`${API_BASE_URL}/chat/assistant/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(data),
+    });
   }
 
   // 项目相关
@@ -141,41 +266,10 @@ class ApiService {
     return response.blob();
   }
 
-  // 社区
-  async getCommunityPosts(category?: string, page = 1): Promise<ApiResponse<{ posts: CommunityPost[]; total: number }>> {
-    const params = new URLSearchParams({ page: page.toString() });
-    if (category) params.append('category', category);
-    return this.request(`/community/posts?${params.toString()}`);
-  }
 
-  async getCommunityPost(id: string): Promise<ApiResponse<CommunityPost>> {
-    return this.request(`/community/posts/${id}`);
-  }
 
-  async createCommunityPost(postData: { title: string; content: string; category: string; tags: string[] }): Promise<ApiResponse<CommunityPost>> {
-    return this.request('/community/posts', {
-      method: 'POST',
-      body: JSON.stringify(postData),
-    });
-  }
-
-  async likeCommunityPost(id: string): Promise<ApiResponse<null>> {
-    return this.request(`/community/posts/${id}/like`, { method: 'POST' });
-  }
-
-  async getPostComments(postId: string): Promise<ApiResponse<Comment[]>> {
-    return this.request(`/community/posts/${postId}/comments`);
-  }
-
-  async createComment(postId: string, content: string): Promise<ApiResponse<Comment>> {
-    return this.request(`/community/posts/${postId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    });
-  }
-
-  // 文件上传
-  async uploadFile(file: File, type: 'project' | 'knowledge' | 'avatar'): Promise<ApiResponse<{ url: string }>> {
+  // 多模态文件上传
+  async uploadFile(file: File, type: 'document' | 'image' | 'audio' | 'avatar'): Promise<ApiResponse<{ url: string; fileId?: string }>> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
@@ -185,6 +279,93 @@ class ApiService {
       body: formData,
       headers: {}, // 让浏览器自动设置Content-Type
     });
+  }
+
+  // 语音转文字
+  async transcribeAudio(file: File): Promise<ApiResponse<{ text: string }>> {
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    return this.request('/audio/transcribe', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  // AI资源生成
+  async generatePPT(data: {
+    topic: string;
+    content: string;
+    slides?: number;
+    style?: string;
+  }): Promise<ApiResponse<{ taskId: string }>> {
+    return this.request('/ai/generate/ppt', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async generateQuiz(data: {
+    topic: string;
+    content: string;
+    questionCount?: number;
+    difficulty?: string;
+    questionTypes?: string[];
+  }): Promise<ApiResponse<{ taskId: string }>> {
+    return this.request('/ai/generate/quiz', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async generateExplanation(data: {
+    topic: string;
+    content: string;
+    level?: string;
+    style?: string;
+  }): Promise<ApiResponse<{ taskId: string }>> {
+    return this.request('/ai/generate/explanation', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // RAG知识库
+  async uploadToKnowledgeBase(file: File, metadata?: {
+    subject?: string;
+    grade?: string;
+    tags?: string[];
+  }): Promise<ApiResponse<{ knowledgeBaseId: string }>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (metadata) {
+      formData.append('metadata', JSON.stringify(metadata));
+    }
+
+    return this.request('/knowledge-base/upload', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  }
+
+  async searchKnowledgeBase(query: string, filters?: {
+    subject?: string;
+    grade?: string;
+    tags?: string[];
+  }): Promise<ApiResponse<any[]>> {
+    const params = new URLSearchParams({ query });
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach(v => params.append(key, v));
+        } else if (value) {
+          params.append(key, value);
+        }
+      });
+    }
+    return this.request(`/knowledge-base/search?${params.toString()}`);
   }
 }
 

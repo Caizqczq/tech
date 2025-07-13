@@ -32,8 +32,8 @@ spring:
 # 阿里云OSS配置
 aliyun:
   oss:
-    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID}
-    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
     bucket-name: ${ALIYUN_OSS_BUCKET_NAME:tech-czq}
     endpoint: ${ALIYUN_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
     custom-domain: ${ALIYUN_OSS_CUSTOM_DOMAIN:}

@@ -98,7 +98,15 @@ public class ResourceController {
             if (resourceType == null || resourceType.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(createErrorResponse("资源类型不能为空"));
             }
-            
+
+            // 参数清理 - 去除可能的多余字符
+            courseLevel = courseLevel.trim().replaceAll(",$", "");
+            subject = subject.trim().replaceAll(",$", "");
+            resourceType = resourceType.trim().replaceAll(",$", "");
+
+            log.info("清理后的参数 - subject: [{}], courseLevel: [{}], resourceType: [{}]",
+                    subject, courseLevel, resourceType);
+
             // 验证courseLevel枚举值
             if (!Arrays.asList("undergraduate", "graduate", "doctoral").contains(courseLevel)) {
                 return ResponseEntity.badRequest().body(createErrorResponse("课程层次必须是undergraduate、graduate或doctoral"));
@@ -234,7 +242,13 @@ public class ResourceController {
             if (courseLevel == null || courseLevel.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(createErrorResponse("课程层次不能为空"));
             }
-            
+
+            // 参数清理 - 去除可能的多余字符
+            courseLevel = courseLevel.trim().replaceAll(",$", "");
+            subject = subject.trim().replaceAll(",$", "");
+
+            log.info("批量上传清理后的参数 - subject: [{}], courseLevel: [{}]", subject, courseLevel);
+
             // 验证courseLevel枚举值
             if (!Arrays.asList("undergraduate", "graduate", "doctoral").contains(courseLevel)) {
                 return ResponseEntity.badRequest().body(createErrorResponse("课程层次必须是undergraduate、graduate或doctoral"));
@@ -271,20 +285,33 @@ public class ResourceController {
             @RequestParam(value = "courseLevel", required = false) String courseLevel,
             @RequestParam(value = "keywords", required = false) String keywords,
             @PageableDefault(page = 0, size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        
+
         try {
             // 验证用户登录
             Integer userId = ThreadLocalUtil.get();
             if (userId == null) {
                 return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
             }
-            
+
+            // 添加参数调试日志
+            log.info("接收到的参数 - resourceType: [{}], subject: [{}], courseLevel: [{}], keywords: [{}]",
+                    resourceType, subject, courseLevel, keywords);
+
+            // 参数清理 - 去除可能的多余字符
+            String cleanCourseLevel = courseLevel != null ? courseLevel.trim().replaceAll(",$", "") : null;
+            String cleanResourceType = resourceType != null ? resourceType.trim().replaceAll(",$", "") : null;
+            String cleanSubject = subject != null ? subject.trim().replaceAll(",$", "") : null;
+            String cleanKeywords = keywords != null ? keywords.trim().replaceAll(",$", "") : null;
+
+            log.info("清理后的参数 - resourceType: [{}], subject: [{}], courseLevel: [{}], keywords: [{}]",
+                    cleanResourceType, cleanSubject, cleanCourseLevel, cleanKeywords);
+
             // 构建查询DTO
             ResourceQueryDTO queryDTO = ResourceQueryDTO.builder()
-                    .resourceType(resourceType)
-                    .subject(subject)
-                    .courseLevel(courseLevel)
-                    .keywords(keywords)
+                    .resourceType(cleanResourceType)
+                    .subject(cleanSubject)
+                    .courseLevel(cleanCourseLevel)
+                    .keywords(cleanKeywords)
                     .build();
             
             Object result = resourceService.getResources(queryDTO, pageable, userId);
@@ -324,8 +351,16 @@ public class ResourceController {
             if (threshold < 0.0 || threshold > 1.0) {
                 return ResponseEntity.badRequest().body(createErrorResponse("相似度阈值必须在0.0-1.0之间"));
             }
-            
-            Object result = resourceService.searchResourcesSemantic(query, subject, courseLevel, topK, threshold, userId);
+
+            // 参数清理 - 去除可能的多余字符
+            String cleanQuery = query.trim().replaceAll(",$", "");
+            String cleanSubject = subject != null ? subject.trim().replaceAll(",$", "") : null;
+            String cleanCourseLevel = courseLevel != null ? courseLevel.trim().replaceAll(",$", "") : null;
+
+            log.info("语义搜索清理后的参数 - query: [{}], subject: [{}], courseLevel: [{}]",
+                    cleanQuery, cleanSubject, cleanCourseLevel);
+
+            Object result = resourceService.searchResourcesSemantic(cleanQuery, cleanSubject, cleanCourseLevel, topK, threshold, userId);
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
@@ -364,93 +399,6 @@ public class ResourceController {
         }
     }
     
-    /** 5.5.1 删除教学资源 */
-    @DeleteMapping("/{resourceId}")
-    public ResponseEntity<?> deleteResource(@PathVariable String resourceId) {
-        try {
-            // 验证用户登录
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
-            }
-            
-            // 参数验证
-            if (resourceId == null || resourceId.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
-            }
-            
-            resourceService.deleteResource(resourceId, userId);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("message", "资源删除成功");
-            result.put("resourceId", resourceId);
-            return ResponseEntity.ok(result);
-            
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权删除")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("删除资源失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("删除资源失败: " + e.getMessage()));
-        } catch (Exception e) {
-            log.error("删除资源失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("删除资源失败: " + e.getMessage()));
-        }
-    }
-    
-    /** 5.5.2 获取资源下载链接 */
-    @GetMapping("/{resourceId}/download")
-    public ResponseEntity<?> getResourceDownloadUrl(@PathVariable String resourceId) {
-        try {
-            // 验证用户登录
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
-            }
-            
-            // 参数验证
-            if (resourceId == null || resourceId.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
-            }
-            
-            String downloadUrl = resourceService.getResourceDownloadUrl(resourceId, userId);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("resourceId", resourceId);
-            result.put("downloadUrl", downloadUrl);
-            result.put("expiresIn", 3600); // 1小时有效期
-            return ResponseEntity.ok(result);
-            
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权访问")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("获取下载链接失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
-        } catch (Exception e) {
-            log.error("获取下载链接失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
-        }
-    }
-    
-    /** 5.5.3 资源统计信息 */
-    @GetMapping("/statistics")
-    public ResponseEntity<?> getResourceStatistics() {
-        try {
-            // 验证用户登录
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
-            }
-
-            Object result = resourceService.getResourceStatistics(userId);
-            return ResponseEntity.ok(result);
-
-        } catch (Exception e) {
-            log.error("获取资源统计失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取资源统计失败: " + e.getMessage()));
-        }
-    }
 
     /** 5.3.1 构建知识库 */
     @PostMapping("/knowledge-base")
@@ -478,6 +426,13 @@ public class ResourceController {
             if (createDTO.getCourseLevel() == null || createDTO.getCourseLevel().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(createErrorResponse("课程层次不能为空"));
             }
+
+            // 参数清理 - 去除可能的多余字符
+            createDTO.setSubject(createDTO.getSubject().trim().replaceAll(",$", ""));
+            createDTO.setCourseLevel(createDTO.getCourseLevel().trim().replaceAll(",$", ""));
+
+            log.info("知识库创建清理后的参数 - subject: [{}], courseLevel: [{}]",
+                    createDTO.getSubject(), createDTO.getCourseLevel());
 
             // 验证courseLevel枚举值
             if (!Arrays.asList("undergraduate", "graduate", "doctoral").contains(createDTO.getCourseLevel())) {
@@ -618,4 +573,93 @@ public class ResourceController {
         error.put("path", "/api/resources");
         return error;
     }
+
+    /** 5.5.1 删除教学资源 */
+    @DeleteMapping("/{resourceId}")
+    public ResponseEntity<?> deleteResource(@PathVariable String resourceId) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            // 参数验证
+            if (resourceId == null || resourceId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
+            }
+
+            resourceService.deleteResource(resourceId, userId);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("message", "资源删除成功");
+            result.put("resourceId", resourceId);
+            return ResponseEntity.ok(result);
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权删除")) {
+                return ResponseEntity.notFound().build();
+            }
+            log.error("删除资源失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("删除资源失败: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("删除资源失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("删除资源失败: " + e.getMessage()));
+        }
+    }
+
+    /** 5.5.2 获取资源下载链接 */
+    @GetMapping("/{resourceId}/download")
+    public ResponseEntity<?> getResourceDownloadUrl(@PathVariable String resourceId) {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            // 参数验证
+            if (resourceId == null || resourceId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
+            }
+
+            String downloadUrl = resourceService.getResourceDownloadUrl(resourceId, userId);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("resourceId", resourceId);
+            result.put("downloadUrl", downloadUrl);
+            result.put("expiresIn", 3600); // 1小时有效期
+            return ResponseEntity.ok(result);
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权访问")) {
+                return ResponseEntity.notFound().build();
+            }
+            log.error("获取下载链接失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("获取下载链接失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
+        }
+    }
+
+    /** 5.5.3 资源统计信息 */
+    @GetMapping("/statistics")
+    public ResponseEntity<?> getResourceStatistics() {
+        try {
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+
+            Object result = resourceService.getResourceStatistics(userId);
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("获取资源统计失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取资源统计失败: " + e.getMessage()));
+        }
+    }
+
 }

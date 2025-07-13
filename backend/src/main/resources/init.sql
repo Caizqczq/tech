@@ -75,7 +75,7 @@ create table transcription_tasks(
 -- 对话会话表
 drop table if exists conversations;
 create table conversations(
-                              id varchar(50) primary key comment '对话ID',
+                              id varchar(100) primary key comment '对话ID',
                               user_id int not null comment '用户ID',
                               title varchar(200) not null comment '对话标题',
                               scenario enum('teaching_advice', 'content_analysis', 'writing_assistance', 'general_chat') not null comment '对话场景',

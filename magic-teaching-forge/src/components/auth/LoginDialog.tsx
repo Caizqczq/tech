@@ -4,8 +4,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 interface LoginDialogProps {
@@ -17,7 +19,15 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
   const { login, register } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ username: '', email: '', password: '', confirmPassword: '' });
+  const [registerForm, setRegisterForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'teacher' as 'teacher' | 'admin',
+    subject: '',
+    institution: ''
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,10 +46,29 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
       return;
     }
     setLoading(true);
-    const success = await register(registerForm.username, registerForm.email, registerForm.password);
-    if (success) {
-      onOpenChange(false);
-      setRegisterForm({ username: '', email: '', password: '', confirmPassword: '' });
+    try {
+      const success = await register(
+        registerForm.username,
+        registerForm.email,
+        registerForm.password,
+        registerForm.role,
+        registerForm.subject || undefined,
+        registerForm.institution || undefined
+      );
+      if (success) {
+        toast({
+          title: "注册成功",
+          description: "欢迎加入智能教学平台！",
+        });
+        onOpenChange(false);
+        setRegisterForm({ username: '', email: '', password: '', confirmPassword: '', role: 'teacher', subject: '', institution: '' });
+      }
+    } catch (error) {
+      toast({
+        title: "注册失败",
+        description: "请检查输入信息",
+        variant: "destructive",
+      });
     }
     setLoading(false);
   };
@@ -90,9 +119,11 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
           <TabsContent value="register" className="space-y-4">
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="register-username">用户名</Label>
+                <Label htmlFor="register-username">姓名</Label>
                 <Input
                   id="register-username"
+                  type="text"
+                  placeholder="请输入您的真实姓名"
                   value={registerForm.username}
                   onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
                   required
@@ -103,16 +134,54 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
                 <Input
                   id="register-email"
                   type="email"
+                  placeholder="请输入邮箱地址"
                   value={registerForm.email}
                   onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
                   required
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="register-role">身份</Label>
+                <Select value={registerForm.role} onValueChange={(value: 'teacher' | 'admin') => setRegisterForm(prev => ({ ...prev, role: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="teacher">教师</SelectItem>
+                    <SelectItem value="admin">管理员</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {registerForm.role === 'teacher' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-subject">任教学科</Label>
+                    <Input
+                      id="register-subject"
+                      type="text"
+                      placeholder="如：数学、物理、化学等"
+                      value={registerForm.subject}
+                      onChange={(e) => setRegisterForm(prev => ({ ...prev, subject: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-institution">所在机构</Label>
+                    <Input
+                      id="register-institution"
+                      type="text"
+                      placeholder="如：XX大学、XX中学等"
+                      value={registerForm.institution}
+                      onChange={(e) => setRegisterForm(prev => ({ ...prev, institution: e.target.value }))}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-2">
                 <Label htmlFor="register-password">密码</Label>
                 <Input
                   id="register-password"
                   type="password"
+                  placeholder="请设置密码（至少6位）"
                   value={registerForm.password}
                   onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
                   required
@@ -123,6 +192,7 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
                 <Input
                   id="register-confirm"
                   type="password"
+                  placeholder="请再次输入密码"
                   value={registerForm.confirmPassword}
                   onChange={(e) => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
                   required
@@ -130,7 +200,7 @@ const LoginDialog: React.FC<LoginDialogProps> = ({ open, onOpenChange }) => {
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                注册
+                注册账户
               </Button>
             </form>
           </TabsContent>
