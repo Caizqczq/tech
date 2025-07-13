@@ -63,10 +63,7 @@ public class ResourceController {
     private static final long MAX_DOCUMENT_SIZE = 50 * 1024 * 1024; // 50MB
     private static final long MAX_AUDIO_SIZE = 100 * 1024 * 1024; // 100MB
     
-    /**
-     * 5.1.1 学术文档上传
-     * POST /api/resources/upload/document
-     */
+    /** 5.1.1 学术文档上传 */
     @PostMapping("/upload/document")
     public ResponseEntity<?> uploadDocument(
             @RequestParam("file") MultipartFile file,
@@ -143,10 +140,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.1.2 学术语音上传及转文字
-     * POST /api/resources/upload/audio
-     */
+    /** 5.1.2 学术语音上传及转文字 */
     @PostMapping("/upload/audio")
     public ResponseEntity<?> uploadAudio(
             @RequestParam("file") MultipartFile file,
@@ -218,10 +212,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.1.3 批量资源上传
-     * POST /api/resources/upload/batch
-     */
+    /** 5.1.3 批量资源上传 */
     @PostMapping("/upload/batch")
     public ResponseEntity<?> uploadBatch(
             @RequestParam("files") MultipartFile[] files,
@@ -275,10 +266,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.2.1 分页查询教学资源
-     * GET /api/resources
-     */
+    /** 5.2.1 分页查询教学资源 */
     @GetMapping
     public ResponseEntity<?> getResources(
             @RequestParam(value = "resourceType", required = false) String resourceType,
@@ -311,10 +299,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.2.2 语义搜索资源
-     * GET /api/resources/search/semantic
-     */
+    /** 5.2.2 语义搜索资源 */
     @GetMapping("/search/semantic")
     public ResponseEntity<?> searchResourcesSemantic(
             @RequestParam("query") String query,
@@ -352,10 +337,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.2.3 获取资源详情
-     * GET /api/resources/{resourceId}
-     */
+    /** 5.2.3 获取资源详情 */
     @GetMapping("/{resourceId}")
     public ResponseEntity<?> getResourceDetail(@PathVariable String resourceId) {
         try {
@@ -385,10 +367,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.5.1 删除教学资源
-     * DELETE /api/resources/{resourceId}
-     */
+    /** 5.5.1 删除教学资源 */
     @DeleteMapping("/{resourceId}")
     public ResponseEntity<?> deleteResource(@PathVariable String resourceId) {
         try {
@@ -422,10 +401,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.5.2 获取资源下载链接
-     * GET /api/resources/{resourceId}/download
-     */
+    /** 5.5.2 获取资源下载链接 */
     @GetMapping("/{resourceId}/download")
     public ResponseEntity<?> getResourceDownloadUrl(@PathVariable String resourceId) {
         try {
@@ -460,10 +436,7 @@ public class ResourceController {
         }
     }
     
-    /**
-     * 5.5.3 资源统计信息
-     * GET /api/resources/statistics
-     */
+    /** 5.5.3 资源统计信息 */
     @GetMapping("/statistics")
     public ResponseEntity<?> getResourceStatistics() {
         try {
@@ -482,10 +455,7 @@ public class ResourceController {
         }
     }
 
-    /**
-     * 5.3.1 构建知识库
-     * POST /api/resources/knowledge-base
-     */
+    /** 5.3.1 构建知识库 */
     @PostMapping("/knowledge-base")
     public ResponseEntity<?> createKnowledgeBase(@RequestBody KnowledgeBaseCreateDTO createDTO) {
         try {
@@ -526,10 +496,7 @@ public class ResourceController {
         }
     }
 
-    /**
-     * 5.3.2 知识库状态查询
-     * GET /api/resources/knowledge-base/{knowledgeBaseId}/status
-     */
+    /** 5.3.2 知识库状态查询 */
     @GetMapping("/knowledge-base/{knowledgeBaseId}/status")
     public ResponseEntity<?> getKnowledgeBaseStatus(@PathVariable String knowledgeBaseId) {
         try {
@@ -559,10 +526,7 @@ public class ResourceController {
         }
     }
 
-    /**
-     * 5.3.3 知识库列表
-     * GET /api/resources/knowledge-base
-     */
+    /** 5.3.3 知识库列表 */
     @GetMapping("/knowledge-base")
     public ResponseEntity<?> getKnowledgeBaseList(
             @PageableDefault(page = 0, size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -582,10 +546,7 @@ public class ResourceController {
         }
     }
 
-    /**
-     * 5.4.1 基于RAG的智能问答
-     * POST /api/resources/qa
-     */
+    /** 5.4.1 基于RAG的智能问答 */
     @PostMapping("/qa")
     public ResponseEntity<?> ragQuery(@RequestBody RAGQueryDTO queryDTO) {
         try {
@@ -623,10 +584,7 @@ public class ResourceController {
         }
     }
 
-    /**
-     * 5.4.2 流式智能问答
-     * POST /api/resources/qa/stream
-     */
+    /** 5.4.2 流式智能问答 */
     @PostMapping(value = "/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> ragQueryStream(@RequestBody RAGQueryDTO queryDTO) {
         try {

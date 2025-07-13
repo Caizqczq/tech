@@ -60,9 +60,7 @@ public class TeachingChatController {
                 .build();
     }
     
-    /**
-     * 教学建议API
-     */
+    /** 3.1 教学建议接口 */
     @PostMapping("/teaching-advice")
     public ResponseEntity<?> getTeachingAdvice(@RequestBody TeachingAdviceDTO adviceDTO) {
         try {
@@ -86,9 +84,7 @@ public class TeachingChatController {
         }
     }
     
-    /**
-     * 课程内容分析API
-     */
+    /** 3.2 课程内容分析接口 */
     @PostMapping("/content-analysis")
     public ResponseEntity<?> analyzeContent(@RequestBody ContentAnalysisDTO analysisDTO) {
         try {
@@ -116,9 +112,7 @@ public class TeachingChatController {
         }
     }
     
-    /**
-     * 学术写作辅助API
-     */
+    /** 3.3 学术写作辅助接口 */
     @PostMapping("/writing-assistance")
     public ResponseEntity<?> getWritingAssistance(@RequestBody WritingAssistanceDTO writingDTO) {
         try {
@@ -146,9 +140,7 @@ public class TeachingChatController {
         }
     }
     
-    /**
-     * 智能对话助手API
-     */
+    /** 3.4 智能对话助手接口 */
     @PostMapping("/assistant")
     public ResponseEntity<?> chatWithAssistant(@RequestBody ChatAssistantDTO assistantDTO) {
         try {
@@ -172,11 +164,9 @@ public class TeachingChatController {
         }
     }
     
-    /**
-     * 流式智能对话助手API
-     */
+    /** 3.5 流式智能对话助手接口 */
     @PostMapping("/assistant/stream")
-    public Flux<String> streamChatWithAssistant(@RequestBody ChatAssistantDTO assistantDTO, 
+    public Flux<String> streamChatWithAssistant(@RequestBody ChatAssistantDTO assistantDTO,
                                                HttpServletResponse response) {
         try {
             // 验证用户登录

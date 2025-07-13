@@ -21,9 +21,7 @@ public class ConversationController {
     
     private final ConversationService conversationService;
     
-    /**
-     * 获取对话列表
-     */
+    /** 4.1 获取对话列表 */
     @GetMapping("/conversations")
     public ResponseEntity<?> getConversations(
             @RequestParam(value = "page", defaultValue = "1") Integer page,
@@ -57,9 +55,7 @@ public class ConversationController {
         }
     }
     
-    /**
-     * 获取对话详情
-     */
+    /** 4.2 获取对话详情 */
     @GetMapping("/conversations/{conversationId}")
     public ResponseEntity<?> getConversationDetail(@PathVariable String conversationId) {
         try {
@@ -89,9 +85,7 @@ public class ConversationController {
         }
     }
     
-    /**
-     * 删除对话
-     */
+    /** 4.3 删除对话 */
     @DeleteMapping("/conversations/{conversationId}")
     public ResponseEntity<?> deleteConversation(@PathVariable String conversationId) {
         try {
@@ -125,9 +119,7 @@ public class ConversationController {
         }
     }
     
-    /**
-     * 清空所有对话
-     */
+    /** 4.4 清空所有对话 */
     @DeleteMapping("/conversations")
     public ResponseEntity<?> clearAllConversations() {
         try {
@@ -149,11 +141,9 @@ public class ConversationController {
         }
     }
     
-    /**
-     * 更新对话标题
-     */
+    /** 4.5 更新对话标题 */
     @PutMapping("/conversations/{conversationId}/title")
-    public ResponseEntity<?> updateConversationTitle(@PathVariable String conversationId, 
+    public ResponseEntity<?> updateConversationTitle(@PathVariable String conversationId,
                                                     @RequestBody Map<String, String> request) {
         try {
             // 验证用户登录
@@ -196,9 +186,7 @@ public class ConversationController {
         }
     }
     
-    /**
-     * 获取对话统计信息
-     */
+    /** 4.6 获取对话统计信息 */
     @GetMapping("/conversations/statistics")
     public ResponseEntity<?> getConversationStatistics() {
         try {

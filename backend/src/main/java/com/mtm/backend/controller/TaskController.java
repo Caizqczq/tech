@@ -18,9 +18,7 @@ public class TaskController {
     
     private final TaskService taskService;
     
-    /**
-     * 查询任务状态
-     */
+    /** 6.1 查询任务状态 */
     @GetMapping("/{taskId}/status")
     public ResponseEntity<?> getTaskStatus(@PathVariable String taskId) {
         try {

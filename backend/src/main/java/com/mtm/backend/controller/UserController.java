@@ -32,11 +32,7 @@ public class UserController {
 
     private final TokenBlacklist tokenBlacklist;
 
-    /**
-     * 用户注册
-     * @param registerDto
-     * @return
-     */
+    /** 1.1 用户注册 */
     @PostMapping("register")
     public ResponseEntity<?> register(@RequestBody RegisterDTO registerDto) {
         if (registerDto.getUsername() == null || registerDto.getEmail() == null || registerDto.getPassword() == null) {
@@ -52,11 +48,7 @@ public class UserController {
         return ResponseEntity.ok(registerVO);
     }
 
-    /**
-     * 用户登录
-     * @param loginDTO
-     * @return
-     */
+    /** 1.2 用户登录 */
     @PostMapping("login")
     public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
         if (loginDTO.getEmail() == null || loginDTO.getPassword() == null) {
@@ -86,22 +78,14 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * 测试接口，验证JWT拦截器是否工作正常
-     * @param request
-     * @return
-     */
+    /** 1.5 测试接口 */
     @GetMapping("/hello")
     public String hello(HttpServletRequest request) {
         String username = jwtUtil.getUserFromToken(request.getHeader("Authorization"));
         return "Hello " + username + "!";
     }
 
-    /**
-     * 用户登出
-     * @param request
-     * @return
-     */
+    /** 1.3 用户登出 */
     @PostMapping("logout")
     public ResponseEntity<?> logout(HttpServletRequest request){
         String token = request.getHeader("Authorization");
@@ -117,10 +101,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 获取当前用户信息
-     * @return
-     */
+    /** 1.4 获取当前用户信息 */
     @GetMapping("me")
     public ResponseEntity<?> getInfo(){
         Integer userId = ThreadLocalUtil.get();

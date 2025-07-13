@@ -147,6 +147,18 @@
 
 	</dependencies>
 
+    <!-- Spring AI需要的仓库配置，基于官方文档要求 -->
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
 	<build>
 		<plugins>
 			<plugin>

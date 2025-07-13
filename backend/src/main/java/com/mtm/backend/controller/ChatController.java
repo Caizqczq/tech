@@ -69,6 +69,7 @@ public class ChatController {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    /** 2.1 简单对话接口 */
     @GetMapping("/simple/chat")
     public ResponseEntity<?> simpleChat(@RequestParam(value = "query",defaultValue = "你好,能简单介绍一下自己吗")String query,
                                        @RequestParam(value = "chat-id",defaultValue = "1")String chatId) {
@@ -98,6 +99,7 @@ public class ChatController {
     }
 
 
+    /** 2.2 流式对话接口 */
     @GetMapping("/stream/chat")
     public Flux<String> streamChat(@RequestParam(value = "query", defaultValue = "你好") String query,
                                    @RequestParam(value = "chat-id", defaultValue = "1") String chatId,
@@ -121,9 +123,7 @@ public class ChatController {
         }
     }
 
-    /**
-     * 图片分析接口 - 通过 URL
-     */
+    /** 2.3 图片分析接口 - URL方式 */
     @PostMapping("/image/analyze/url")
     public ResponseEntity<?> analyzeImageByUrl(@RequestParam(defaultValue = "请分析这张图片的内容")String prompt,
                                               @RequestParam String imageUrl) {
@@ -171,9 +171,7 @@ public class ChatController {
         }
     }
 
-    /**
-     * 图片分析接口 - 通过文件上传
-     */
+    /** 2.4 图片分析接口 - 文件上传方式 */
     @PostMapping("/image/analyze/upload")
     public ResponseEntity<?> analyzeImageByUpload(@RequestParam(defaultValue = "请分析这张图片的内容") String prompt,
                                                  @RequestParam("file") MultipartFile file) {
