@@ -9,9 +9,7 @@ import com.mtm.backend.model.DTO.WritingAssistanceDTO;
 import com.mtm.backend.model.DTO.ChatAssistantDTO;
 import com.mtm.backend.model.VO.ChatResponseVO;
 import com.mtm.backend.repository.Conversation;
-import com.mtm.backend.repository.ChatMessage;
 import com.mtm.backend.repository.mapper.ConversationMapper;
-import com.mtm.backend.repository.mapper.ChatMessageMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -35,9 +33,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class TeachingChatService {
-    
+
     private final ConversationMapper conversationMapper;
-    private final ChatMessageMapper chatMessageMapper;
     private final ChatModel chatModel;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -66,11 +63,8 @@ public class TeachingChatService {
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
             
-            // 保存对话记录
+            // 保存对话记录（消息由Spring AI自动管理）
             saveConversation(conversationId, userId, "教学建议对话", "teaching_advice", adviceDTO);
-            saveChatMessage(conversationId, "user", userQuery, null);
-            saveChatMessage(conversationId, "assistant", response.getResult().getOutput().getText(), 
-                    Map.of("usage", response.getMetadata().getUsage()));
             
             // 构建响应
             return ChatResponseVO.builder()
@@ -114,11 +108,8 @@ public class TeachingChatService {
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
             
-            // 保存对话记录
+            // 保存对话记录（消息由Spring AI自动管理）
             saveConversation(conversationId, userId, "课程内容分析", "content_analysis", analysisDTO);
-            saveChatMessage(conversationId, "user", analysisQuery, null);
-            saveChatMessage(conversationId, "assistant", response.getResult().getOutput().getText(), 
-                    Map.of("usage", response.getMetadata().getUsage()));
             
             // 构建响应
             return ChatResponseVO.builder()
@@ -162,11 +153,8 @@ public class TeachingChatService {
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
             
-            // 保存对话记录
+            // 保存对话记录（消息由Spring AI自动管理）
             saveConversation(conversationId, userId, "学术写作辅助", "writing_assistance", writingDTO);
-            saveChatMessage(conversationId, "user", writingQuery, null);
-            saveChatMessage(conversationId, "assistant", response.getResult().getOutput().getText(), 
-                    Map.of("usage", response.getMetadata().getUsage()));
             
             // 构建响应
             return ChatResponseVO.builder()
@@ -209,13 +197,10 @@ public class TeachingChatService {
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
             
-            // 保存对话记录
+            // 保存对话记录（消息由Spring AI自动管理）
             if (assistantDTO.getConversationId() == null) {
                 saveConversation(conversationId, userId, "智能对话助手", "general_chat", assistantDTO);
             }
-            saveChatMessage(conversationId, "user", assistantDTO.getMessage(), null);
-            saveChatMessage(conversationId, "assistant", response.getResult().getOutput().getText(), 
-                    Map.of("usage", response.getMetadata().getUsage()));
             
             // 构建响应
             return ChatResponseVO.builder()
@@ -253,21 +238,16 @@ public class TeachingChatService {
             // 创建ChatClient
             ChatClient chatClient = createTeachingChatClient(systemPrompt);
             
-            // 异步保存用户消息
+            // 保存对话记录（消息由Spring AI自动管理）
             if (assistantDTO.getConversationId() == null) {
                 saveConversation(conversationId, userId, "智能对话助手(流式)", "general_chat", assistantDTO);
             }
-            saveChatMessage(conversationId, "user", assistantDTO.getMessage(), null);
-            
+
             // 返回流式响应
             return chatClient.prompt(assistantDTO.getMessage())
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .stream()
-                    .content()
-                    .doOnComplete(() -> {
-                        // 流式完成后保存助手消息
-                        saveChatMessage(conversationId, "assistant", "流式响应完成", null);
-                    });
+                    .content();
                     
         } catch (Exception e) {
             log.error("流式对话助手失败", e);
@@ -434,39 +414,6 @@ public class TeachingChatService {
             conversationMapper.insert(conversation);
         } catch (Exception e) {
             log.error("保存对话失败", e);
-        }
-    }
-    
-    private void saveChatMessage(String conversationId, String messageType, String content, Object metadata) {
-        try {
-            String metadataJson = metadata != null ? objectMapper.writeValueAsString(metadata) : null;
-            
-            ChatMessage message = ChatMessage.builder()
-                    .id(UUID.randomUUID().toString().replace("-", ""))
-                    .conversationId(conversationId)
-                    .messageType(messageType)
-                    .content(content)
-                    .metadata(metadataJson)
-                    .build();
-            
-            chatMessageMapper.insert(message);
-            
-            // 更新对话消息计数
-            updateConversationMessageCount(conversationId);
-        } catch (Exception e) {
-            log.error("保存消息失败", e);
-        }
-    }
-    
-    private void updateConversationMessageCount(String conversationId) {
-        try {
-            Conversation conversation = conversationMapper.selectById(conversationId);
-            if (conversation != null) {
-                conversation.setTotalMessages(conversation.getTotalMessages() + 1);
-                conversationMapper.updateById(conversation);
-            }
-        } catch (Exception e) {
-            log.error("更新对话消息计数失败", e);
         }
     }
 }

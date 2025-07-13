@@ -78,13 +78,6 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    /** 1.5 测试接口 */
-    @GetMapping("/hello")
-    public String hello(HttpServletRequest request) {
-        String username = jwtUtil.getUserFromToken(request.getHeader("Authorization"));
-        return "Hello " + username + "!";
-    }
-
     /** 1.3 用户登出 */
     @PostMapping("logout")
     public ResponseEntity<?> logout(HttpServletRequest request){
@@ -127,6 +120,15 @@ public class UserController {
 
         return ResponseEntity.ok(userInfoVO);
     }
+
+    /** 1.5 测试接口 */
+    @GetMapping("/hello")
+    public String hello(HttpServletRequest request) {
+        String username = jwtUtil.getUserFromToken(request.getHeader("Authorization"));
+        return "Hello " + username + "!";
+    }
+
+
 
 
 

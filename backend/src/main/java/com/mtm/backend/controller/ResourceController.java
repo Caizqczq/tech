@@ -28,10 +28,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 智能教学资源管理模块控制器
- * 符合接口文档模块5的规范要求
- */
+
 @RestController
 @RequestMapping("/api/resources")
 @RequiredArgsConstructor

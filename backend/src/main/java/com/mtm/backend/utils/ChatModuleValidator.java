@@ -40,8 +40,7 @@ public class ChatModuleValidator implements CommandLineRunner {
     private void validateDatabaseTables() {
         log.info("✓ 数据库表验证：");
         log.info("  - conversations 表：对话会话管理");
-        log.info("  - chat_messages 表：对话消息存储");
-        log.info("  - ai_chat_memory 表：Spring AI 自动创建的记忆存储");
+        log.info("  - ai_chat_memory 表：Spring AI 自动创建的统一消息存储");
     }
     
     private void validateControllers() {
@@ -59,9 +58,9 @@ public class ChatModuleValidator implements CommandLineRunner {
     
     private void validateModels() {
         log.info("✓ 数据模型验证：");
-        log.info("  - 实体类：Conversation, ChatMessage");
+        log.info("  - 实体类：Conversation（消息由Spring AI统一管理）");
         log.info("  - DTO类：TeachingAdviceDTO, ContentAnalysisDTO, WritingAssistanceDTO, ChatAssistantDTO");
         log.info("  - VO类：ConversationVO, ChatMessageVO, ChatResponseVO");
-        log.info("  - Mapper类：ConversationMapper, ChatMessageMapper");
+        log.info("  - Mapper类：ConversationMapper（消息存储由Spring AI MysqlChatMemoryRepository管理）");
     }
 }

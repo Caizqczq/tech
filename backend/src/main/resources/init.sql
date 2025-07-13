@@ -89,19 +89,21 @@ create table conversations(
                               index idx_created_at (created_at)
 ) default charset = utf8mb4 comment = "对话会话表";
 
--- 对话消息表
-drop table if exists chat_messages;
-create table chat_messages(
-                              id varchar(50) primary key comment '消息ID',
-                              conversation_id varchar(50) not null comment '对话ID',
-                              message_type enum('user', 'assistant', 'system') not null comment '消息类型',
-                              content longtext not null comment '消息内容',
-                              metadata json comment '消息元数据(tokens、模型参数等)',
-                              created_at timestamp default current_timestamp comment '创建时间',
-                              
-                              index idx_conversation_id (conversation_id),
-                              index idx_created_at (created_at)
-) default charset = utf8mb4 comment = "对话消息表";
+-- 对话消息存储说明：
+-- Spring AI Alibaba的MysqlChatMemoryRepository会自动创建ai_chat_memory表来存储聊天记录
+-- 该表结构由Spring AI框架管理，支持消息窗口、自动清理等高级功能
+-- 表结构大致为：
+-- CREATE TABLE ai_chat_memory (
+--     conversation_id VARCHAR(255) NOT NULL,
+--     message_content TEXT NOT NULL,
+--     message_type VARCHAR(50) NOT NULL,  -- USER, ASSISTANT, SYSTEM
+--     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     metadata JSON,
+--     INDEX idx_conversation_id (conversation_id),
+--     INDEX idx_timestamp (timestamp)
+-- );
+--
+-- 注意：此表由Spring AI自动创建和管理，无需手动建表
 
 -- 知识库表（新增，支持模块5的知识库管理功能）
 drop table if exists knowledge_base;

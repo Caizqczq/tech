@@ -17,6 +17,7 @@ public class ConversationVO {
     private String scenario;
     private String contextInfo;
     private Integer totalMessages;
+    private String lastMessage;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

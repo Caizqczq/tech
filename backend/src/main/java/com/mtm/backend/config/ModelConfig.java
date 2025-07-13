@@ -1,5 +1,6 @@
 package com.mtm.backend.config;
 
+import com.alibaba.cloud.ai.memory.jdbc.MysqlChatMemoryRepository;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -8,6 +9,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.redis.RedisVectorStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import redis.clients.jedis.JedisPooled;
 
 @Configuration
@@ -47,5 +49,16 @@ public class ModelConfig {
     @Bean
     public JedisPooled jedisPooled() {
         return new JedisPooled("localhost", 6379);
+    }
+
+    /**
+     * 配置MysqlChatMemoryRepository Bean
+     * 基于Spring AI Alibaba官方文档的标准配置方式
+     */
+    @Bean
+    public MysqlChatMemoryRepository mysqlChatMemoryRepository(JdbcTemplate jdbcTemplate) {
+        return MysqlChatMemoryRepository.mysqlBuilder()
+                .jdbcTemplate(jdbcTemplate)
+                .build();
     }
 }
