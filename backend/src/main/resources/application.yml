@@ -1,57 +1,58 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+server:
+  port: 8080
 
 spring:
-  data:
-    redis:
-      host: localhost
-      port: 6379
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/tech?useUnicode=true&characterEncoding=UTF-8
-    username: root
-    password: 123456
   application:
-    name: backend
-  ai:
-    dashscope:
-      api-key: ${AI_DASHSCOPE_API_KEY:}
-      chat:
-        model: qwen-turbo
-      embedding:
-        model: text-embedding-v2
-      audio:
-        transcription:
-          model: paraformer-realtime-v2
-          options:
-            language: zh
-    vectorstore:
-      redis:
-        uri: redis://localhost:6379
-        initialize-schema: true
-        index-name: teaching-resources
-        prefix: "vector:"
+    name: spring-ai-alibaba-playground
+
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 20MB
+      max-request-size: 20MB
 
-# 阿里云OSS配置
-aliyun:
-  oss:
-    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
-    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
-    bucket-name: ${ALIYUN_OSS_BUCKET_NAME:tech-czq}
-    endpoint: ${ALIYUN_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
-    custom-domain: ${ALIYUN_OSS_CUSTOM_DOMAIN:}
+  profiles:
+    active: dev
 
-logging:
-  level:
-    org.springframework.ai: debug
-    com.alibaba.dashscope.api: debug
-    com.alibaba.cloud.ai.dashscope.chat: debug
-    com.mtm.backend: debug
-server:
-  port: 8082
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.alibaba.cloud.ai.application
 
-jwt:
-    secret: 1234567890qwertyuiopasdfghjklzxcvbnm
-    expiration: 8640000 # 24 hours in seconds
+knife4j:
+  #是否启用增强设置
+  enable: true
+  #开启生产环境屏蔽 - 根据环境变量动态配置，默认为false
+  production: ${KNIFE4J_PRODUCTION:false}
+  #是否启用登录认证
+  # basic:
+  #   enable: true
+  #  username: admin
+  #  password: 123456
+  setting:
+    language: zh_cn
+    enable-version: true
+    enable-swagger-models: true
