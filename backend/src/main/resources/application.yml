@@ -18,6 +18,11 @@ spring:
         model: qwen-turbo
       embedding:
         model: text-embedding-v2
+      audio:
+        transcription:
+          model: paraformer-realtime-v2
+          options:
+            language: zh
     vectorstore:
       redis:
         uri: redis://localhost:6379

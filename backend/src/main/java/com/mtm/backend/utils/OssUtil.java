@@ -51,8 +51,8 @@ public class OssUtil {
         String uuid = UUID.randomUUID().toString().replace("-", "");
         String filename = timestamp + "_" + uuid + extension;
 
-        // 构建OSS对象key
-        String ossKey = folder + "/" + filename;
+        // 构建OSS对象key，规范化路径避免双斜杠
+        String ossKey = normalizePath(folder + "/" + filename);
 
         log.info("生成OSS Key: {}", ossKey);
         log.info("使用Bucket: {}", ossConfig.getBucketName());
@@ -163,5 +163,55 @@ public class OssUtil {
      */
     public String generateSignedUrl(String ossKey) {
         return generateSignedUrl(ossKey, 2);
+    }
+
+    /**
+     * 获取OSS配置的endpoint
+     * @return endpoint
+     */
+    public String getEndpoint() {
+        return ossConfig.getEndpoint();
+    }
+
+    /**
+     * 获取OSS配置的bucket名称
+     * @return bucket名称
+     */
+    public String getBucketName() {
+        return ossConfig.getBucketName();
+    }
+
+    /**
+     * 获取OSS配置的自定义域名
+     * @return 自定义域名
+     */
+    public String getCustomDomain() {
+        return ossConfig.getCustomDomain();
+    }
+
+    /**
+     * 规范化路径，移除多余的斜杠
+     * @param path 原始路径
+     * @return 规范化后的路径
+     */
+    private String normalizePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return path;
+        }
+
+        // 移除多余的斜杠，但保留开头的斜杠（如果有的话）
+        String normalized = path.replaceAll("/+", "/");
+
+        // 移除开头的斜杠（OSS Key不应该以斜杠开头）
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+
+        // 移除结尾的斜杠
+        if (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return normalized;
     }
 }

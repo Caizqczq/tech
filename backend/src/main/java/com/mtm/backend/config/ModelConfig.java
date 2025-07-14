@@ -1,6 +1,7 @@
 package com.mtm.backend.config;
 
 import com.alibaba.cloud.ai.memory.jdbc.MysqlChatMemoryRepository;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.model.ChatModel;
@@ -61,4 +62,6 @@ public class ModelConfig {
                 .jdbcTemplate(jdbcTemplate)
                 .build();
     }
+
+
 }

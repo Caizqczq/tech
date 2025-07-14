@@ -33,7 +33,7 @@ create table teaching_resources(
                                    -- 音频特有字段
                                    duration int comment '音频时长(秒)',
                                    language varchar(10) comment '语言(zh/en)',
-                                   audio_type enum('lecture', 'seminar', 'discussion', 'interview') comment '音频类型',
+                                   audio_type varchar(50) comment '音频类型(lecture/seminar/discussion/interview等)',
                                    speaker varchar(100) comment '主讲人',
                                    transcription_text longtext comment '转录文本',
                                    

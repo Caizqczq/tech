@@ -177,7 +177,7 @@ public class ResourceController {
                 return ResponseEntity.badRequest().body(createErrorResponse("转录模式必须是sync、async或stream"));
             }
             
-            if (resourceType != null && !Arrays.asList("lecture", "seminar", "discussion", "interview").contains(resourceType)) {
+            if (!resourceType.isEmpty()&& !Arrays.asList("lecture", "seminar", "discussion", "interview").contains(resourceType)) {
                 return ResponseEntity.badRequest().body(createErrorResponse("资源类型必须是lecture、seminar、discussion或interview"));
             }
             

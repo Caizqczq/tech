@@ -1,5 +1,17 @@
 package com.mtm.backend.service;
 
+
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
+import com.alibaba.dashscope.common.MultiModalMessage;
+import com.alibaba.dashscope.common.Role;
+import com.alibaba.dashscope.exception.ApiException;
+import com.alibaba.dashscope.exception.NoApiKeyException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -20,18 +32,15 @@ import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
 import com.mtm.backend.utils.OssUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
-import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
-import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.core.io.ByteArrayResource;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
+import java.util.Arrays;
 
 import java.io.IOException;
 import java.util.*;
@@ -49,7 +58,6 @@ public class ResourceService {
     private final TeachingResourceMapper teachingResourceMapper;
     private final TranscriptionTaskMapper transcriptionTaskMapper;
     private final OssUtil ossUtil;
-    private final AudioTranscriptionModel audioTranscriptionModel;
     private final VectorStore vectorStore;
     
     /**
@@ -117,9 +125,17 @@ public class ResourceService {
      */
     public Object uploadAudio(MultipartFile file, AudioUploadDTO uploadDTO, Integer userId) throws IOException {
         String resourceId = generateResourceId();
-        
-        // 上传到OSS
-        String folder = String.format("audio/%d/%s", userId, uploadDTO.getResourceType() != null ? uploadDTO.getResourceType() : "general");
+
+        // 规范化资源类型，避免路径问题
+        String resourceType = uploadDTO.getResourceType();
+        if (resourceType == null || resourceType.trim().isEmpty()) {
+            resourceType = "general";
+        } else {
+            resourceType = resourceType.trim();
+        }
+
+        // 上传到OSS，使用规范化的路径
+        String folder = String.format("audio/%d/%s", userId, resourceType);
         String ossKey = ossUtil.uploadFile(file, folder);
         
         // 保存基本信息到数据库
@@ -134,7 +150,10 @@ public class ResourceService {
         resource.setSubject(uploadDTO.getSubject());
         resource.setDescription(uploadDTO.getDescription());
         resource.setLanguage(uploadDTO.getLanguage());
-        resource.setAudioType(uploadDTO.getResourceType());
+
+        String audioType = validateAndNormalizeAudioType(uploadDTO.getResourceType());
+        resource.setAudioType(audioType);
+
         resource.setSpeaker(uploadDTO.getSpeaker());
         resource.setIsVectorized(uploadDTO.getAutoVectorize());
         resource.setProcessingStatus("completed");
@@ -522,55 +541,83 @@ public class ResourceService {
     
     /**
      * 同步转录
+     * 根据Spring AI Alibaba官方文档的最佳实践实现
      */
     private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource resource, AudioUploadDTO uploadDTO) {
         try {
+            log.info("开始音频转录，文件: {}, 大小: {} bytes", file.getOriginalFilename(), file.getSize());
+
+            // 验证API密钥配置
+            if (System.getenv("AI_DASHSCOPE_API_KEY") == null || System.getenv("AI_DASHSCOPE_API_KEY").trim().isEmpty()) {
+                throw new RuntimeException("DashScope API密钥未配置，请设置AI_DASHSCOPE_API_KEY环境变量");
+            }
+
+            // 验证音频文件格式和大小
+            validateAudioFile(file);
+
             // 等待一秒确保文件上传完成
             Thread.sleep(1000);
-            
+
             // 检查OSS文件是否存在
             if (!ossUtil.doesObjectExist(resource.getOssKey())) {
                 throw new RuntimeException("OSS文件不存在: " + resource.getOssKey());
             }
-            
-            // 直接使用文件字节数组，避免文件系统问题
-            byte[] audioBytes = file.getBytes();
-            String originalFilename = file.getOriginalFilename();
-            
-            // 创建ByteArrayResource，并设置文件名
-            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
-                @Override
-                public String getFilename() {
-                    return originalFilename;
+
+            // 构建OSS文件的公开访问URL
+            // DashScope多模态API需要可公开访问的HTTP/HTTPS URL
+            String audioUrl = buildOssPublicUrl(resource.getOssKey());
+
+            log.info("使用OSS音频文件URL进行转录: {}", audioUrl);
+
+            // 测试URL可访问性
+            if (!testUrlAccessibility(audioUrl)) {
+                log.warn("OSS公开URL不可访问，尝试使用签名URL: {}", audioUrl);
+                // 如果公开URL不可访问，尝试使用签名URL
+                audioUrl = ossUtil.generateSignedUrl(resource.getOssKey(), 1); // 1小时有效期
+                log.info("使用OSS签名URL进行转录: {}", audioUrl);
+
+                if (!testUrlAccessibility(audioUrl)) {
+                    throw new RuntimeException("OSS音频文件URL不可访问，请检查OSS bucket权限配置: " + audioUrl);
                 }
-            };
-            
-            log.info("音频文件大小: {} bytes, 文件名: {}", audioBytes.length, originalFilename);
-            
-            // 执行转录
-            AudioTranscriptionResponse response = audioTranscriptionModel.call(
-                new AudioTranscriptionPrompt(
-                    audioResource,
-                    DashScopeAudioTranscriptionOptions.builder()
-                            .withModel("paraformer-realtime-v2")
-                            .build()
-                )
-            );
-            
-            String transcriptionText = response.getResult().getOutput();
-            
-            // 更新数据库
-            resource.setTranscriptionText(transcriptionText);
-            resource.setUpdatedAt(new Date());
-            teachingResourceMapper.updateById(resource);
-            
-            log.info("音频转录成功，资源ID: {}, 转录长度: {} 字符", resource.getId(), transcriptionText.length());
-            
-            return buildAudioResult(resource, transcriptionText);
-            
+            }
+
+            try {
+                log.info("开始调用DashScope音频转录API，文件URL: {}, 文件大小: {} bytes", audioUrl, file.getSize());
+
+                // 根据文件大小选择合适的处理策略
+                String transcriptionText = performAudioTranscriptionWithRetry(audioUrl, file.getSize());
+
+                if (transcriptionText == null || transcriptionText.trim().isEmpty()) {
+                    log.warn("音频转录结果为空，可能是音频内容无法识别");
+                    transcriptionText = ""; // 设置为空字符串而不是null
+                }
+
+                // 更新数据库
+                resource.setTranscriptionText(transcriptionText);
+                resource.setUpdatedAt(new Date());
+                teachingResourceMapper.updateById(resource);
+
+                log.info("音频转录成功，资源ID: {}, 转录长度: {} 字符", resource.getId(), transcriptionText.length());
+
+                return buildAudioResult(resource, transcriptionText);
+
+            } catch (ApiException e) {
+                log.error("DashScope API调用失败: {}", e.getMessage(), e);
+                throw new RuntimeException("DashScope API调用失败: " + e.getMessage(), e);
+            } catch (NoApiKeyException e) {
+                log.error("DashScope API密钥未配置: {}", e.getMessage(), e);
+                throw new RuntimeException("DashScope API密钥未配置，请检查AI_DASHSCOPE_API_KEY环境变量", e);
+            } catch (Exception e) {
+                log.error("音频转录失败: {}", e.getMessage(), e);
+                throw new RuntimeException("音频转录失败: " + getDetailedErrorMessage(e), e);
+            }
+
         } catch (Exception e) {
-            log.error("同步转录失败", e);
-            throw new RuntimeException("音频转录失败: " + e.getMessage());
+            log.error("同步转录失败: {}", e.getMessage(), e);
+
+            // 根据错误类型提供更具体的错误信息
+            String errorMessage = getDetailedErrorMessage(e);
+            throw new RuntimeException("音频转录失败: " + errorMessage, e);
         }
     }
     
@@ -702,5 +749,398 @@ public class ResourceService {
         query.eq("user_id", userId);
         query.eq("subject", subject);
         return teachingResourceMapper.selectCount(query);
+    }
+
+    /**
+     * 验证和规范化音频类型
+     * 确保音频类型符合接口文档规范且不超过数据库字段长度限制
+     */
+    private String validateAndNormalizeAudioType(String resourceType) {
+        // 如果为空，设置默认值
+        if (resourceType == null || resourceType.trim().isEmpty()) {
+            return "lecture"; // 默认为讲座类型
+        }
+
+        // 去除前后空格并转换为小写
+        String normalizedType = resourceType.trim().toLowerCase();
+
+        // 验证是否为接口文档规定的有效值
+        if (Arrays.asList("lecture", "seminar", "discussion", "interview").contains(normalizedType)) {
+            return normalizedType;
+        }
+
+        // 如果不是标准值，但长度在限制范围内，直接使用（支持扩展）
+        if (normalizedType.length() <= 50) {
+            return normalizedType;
+        }
+
+        // 如果超过长度限制，截断并记录警告
+        log.warn("音频类型长度超过限制，将被截断: {}", resourceType);
+        return normalizedType.substring(0, 50);
+    }
+
+    /**
+     * 验证音频文件格式和大小
+     * 根据DashScope官方文档的要求进行验证
+     */
+    private void validateAudioFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("音频文件为空");
+        }
+
+        // 检查文件大小（最大100MB）
+        long maxSize = 100 * 1024 * 1024; // 100MB
+        if (file.getSize() > maxSize) {
+            throw new RuntimeException("音频文件大小超过限制，最大支持100MB");
+        }
+
+        // 检查文件格式
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null) {
+            throw new RuntimeException("无法获取音频文件名");
+        }
+
+        String extension = originalFilename.toLowerCase();
+        if (!extension.endsWith(".mp3") && !extension.endsWith(".wav") &&
+            !extension.endsWith(".m4a") && !extension.endsWith(".flac")) {
+            throw new RuntimeException("不支持的音频格式，仅支持mp3、wav、m4a、flac格式");
+        }
+
+        // 检查MIME类型
+        String contentType = file.getContentType();
+        if (contentType != null && !contentType.startsWith("audio/")) {
+            log.warn("音频文件MIME类型可能不正确: {}", contentType);
+        }
+    }
+
+    /**
+     * 创建临时音频文件
+     */
+    private java.io.File createTempAudioFile(MultipartFile file) throws IOException {
+        String tempDir = System.getProperty("java.io.tmpdir");
+        String tempFileName = "audio_" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        java.io.File tempFile = new java.io.File(tempDir, tempFileName);
+
+        // 将MultipartFile内容写入临时文件
+        file.transferTo(tempFile);
+
+        // 验证文件是否创建成功
+        if (!tempFile.exists() || tempFile.length() == 0) {
+            throw new IOException("临时音频文件创建失败: " + tempFile.getAbsolutePath());
+        }
+
+        return tempFile;
+    }
+
+
+
+    /**
+     * 清理临时文件
+     */
+    private void cleanupTempFile(java.io.File tempFile) {
+        if (tempFile != null && tempFile.exists()) {
+            try {
+                boolean deleted = tempFile.delete();
+                if (deleted) {
+                    log.debug("临时文件删除成功: {}", tempFile.getAbsolutePath());
+                } else {
+                    log.warn("临时文件删除失败: {}", tempFile.getAbsolutePath());
+                }
+            } catch (Exception e) {
+                log.warn("清理临时文件时发生异常: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 构建OSS文件的公开访问URL
+     * DashScope音频转录API需要可公开访问的HTTP/HTTPS URL
+     */
+    private String buildOssPublicUrl(String ossKey) {
+        try {
+            // 规范化OSS Key，确保没有双斜杠等问题
+            ossKey = normalizeOssKey(ossKey);
+
+            // 从OssConfig获取配置信息
+            String endpoint = ossUtil.getEndpoint();
+            String bucketName = ossUtil.getBucketName();
+            String customDomain = ossUtil.getCustomDomain();
+
+            String finalUrl;
+
+            // 如果配置了自定义域名，使用自定义域名
+            if (customDomain != null && !customDomain.trim().isEmpty()) {
+                // 确保自定义域名以https://开头（DashScope要求HTTPS）
+                if (!customDomain.startsWith("https://")) {
+                    if (customDomain.startsWith("http://")) {
+                        customDomain = customDomain.replace("http://", "https://");
+                    } else {
+                        customDomain = "https://" + customDomain;
+                    }
+                }
+                finalUrl = customDomain + "/" + ossKey;
+            } else {
+                // 使用标准的OSS访问URL格式
+                // 移除endpoint中可能存在的协议前缀
+                String cleanEndpoint = endpoint.replaceAll("^https?://", "");
+
+                // 构建标准OSS URL: https://bucket-name.endpoint/object-key
+                finalUrl = "https://" + bucketName + "." + cleanEndpoint + "/" + ossKey;
+            }
+
+            log.info("构建的OSS公开URL: {}", finalUrl);
+
+            // 验证URL格式
+            validateUrl(finalUrl);
+
+            return finalUrl;
+
+        } catch (Exception e) {
+            log.error("构建OSS公开URL失败: {}", e.getMessage(), e);
+            throw new RuntimeException("无法构建OSS文件访问URL: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 规范化OSS Key
+     */
+    private String normalizeOssKey(String ossKey) {
+        if (ossKey == null || ossKey.isEmpty()) {
+            throw new IllegalArgumentException("OSS Key不能为空");
+        }
+
+        // 移除多余的斜杠
+        String normalized = ossKey.replaceAll("/+", "/");
+
+        // 移除开头的斜杠（OSS Key不应该以斜杠开头）
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * 验证URL格式
+     */
+    private void validateUrl(String url) {
+        try {
+            new java.net.URL(url);
+
+            // 确保是HTTPS协议（DashScope要求）
+            if (!url.startsWith("https://")) {
+                throw new IllegalArgumentException("DashScope API要求使用HTTPS协议");
+            }
+
+        } catch (java.net.MalformedURLException e) {
+            throw new IllegalArgumentException("URL格式不正确: " + url, e);
+        }
+    }
+
+    /**
+     * 测试URL可访问性
+     * 验证DashScope API是否能够访问OSS文件URL
+     */
+    private boolean testUrlAccessibility(String url) {
+        try {
+            log.info("测试URL可访问性: {}", url);
+
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            connection.setRequestMethod("HEAD");
+            connection.setConnectTimeout(5000); // 5秒连接超时
+            connection.setReadTimeout(5000);    // 5秒读取超时
+
+            // 设置User-Agent，模拟正常的HTTP请求
+            connection.setRequestProperty("User-Agent", "Spring-AI-Alibaba/1.0");
+
+            int responseCode = connection.getResponseCode();
+            connection.disconnect();
+
+            boolean accessible = (responseCode == 200);
+            log.info("URL可访问性测试结果: {} (响应码: {})", accessible ? "成功" : "失败", responseCode);
+
+            if (!accessible) {
+                log.warn("URL不可访问，响应码: {}，请检查OSS bucket权限配置", responseCode);
+            }
+
+            return accessible;
+
+        } catch (Exception e) {
+            log.error("URL可访问性测试失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 根据异常类型提供详细的错误信息
+     */
+    private String getDetailedErrorMessage(Exception e) {
+        String message = e.getMessage();
+
+        if (message != null) {
+            if (message.contains("MalformedURLException") || message.contains("spec") || message.contains("null")) {
+                return "API配置错误，请检查AI_DASHSCOPE_API_KEY环境变量是否正确设置";
+            } else if (message.contains("failed to get file urls") || message.contains("url error") || message.contains("please check url")) {
+                return "音频文件URL访问失败。请检查：1) OSS bucket是否配置了公共读权限；2) 文件URL格式是否正确；3) 文件是否真实存在；4) 尝试使用OSS签名URL";
+            } else if (message.contains("get transcription outcome failed") || message.contains("multimodal")) {
+                return "多模态音频转录服务调用失败，请检查网络连接和API密钥配置";
+            } else if (message.contains("FileNotFoundException")) {
+                return "音频文件不存在或无法访问";
+            } else if (message.contains("InvalidParameter") || message.contains("invalid_request_error")) {
+                return "DashScope多模态API参数错误，通常是因为音频文件URL不可公开访问或格式不正确";
+            } else if (message.contains("model_not_found") || message.contains("qwen-audio")) {
+                return "DashScope音频模型不可用，请检查模型配置或API权限";
+            } else if (message.contains("SignatureDoesNotMatch")) {
+                return "OSS签名验证失败，请检查OSS配置";
+            } else if (message.contains("AccessDenied")) {
+                return "OSS访问被拒绝，请检查bucket权限配置";
+            } else if (message.contains("NoSuchBucket")) {
+                return "OSS bucket不存在，请检查bucket名称配置";
+            } else if (message.contains("NoSuchKey")) {
+                return "OSS文件不存在，请检查文件路径";
+            }
+        }
+
+        return message != null ? message : "未知错误";
+    }
+
+    /**
+     * 执行音频转录，包含重试机制和超时处理
+     */
+    private String performAudioTranscriptionWithRetry(String audioUrl, long fileSize) throws Exception {
+        int maxRetries = 3;
+        int retryCount = 0;
+        Exception lastException = null;
+
+        while (retryCount < maxRetries) {
+            try {
+                log.info("音频转录尝试 {}/{}, 文件大小: {} MB", retryCount + 1, maxRetries, fileSize / (1024.0 * 1024.0));
+
+                // 根据文件大小选择合适的模型和超时时间
+                String model = selectOptimalAudioModel(fileSize);
+                int timeoutSeconds = calculateTimeoutForFileSize(fileSize);
+
+                return performSingleAudioTranscription(audioUrl, model, timeoutSeconds);
+
+            } catch (Exception e) {
+                lastException = e;
+                retryCount++;
+
+                log.warn("音频转录第{}次尝试失败: {}", retryCount, e.getMessage());
+
+                if (retryCount < maxRetries) {
+                    // 指数退避重试策略
+                    int waitTime = (int) Math.pow(2, retryCount) * 1000; // 2秒, 4秒, 8秒
+                    log.info("等待{}秒后重试...", waitTime / 1000);
+
+                    try {
+                        Thread.sleep(waitTime);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("重试等待被中断", ie);
+                    }
+                }
+            }
+        }
+
+        throw new RuntimeException("音频转录在" + maxRetries + "次尝试后仍然失败", lastException);
+    }
+
+    /**
+     * 根据文件大小选择最优的音频模型
+     */
+    private String selectOptimalAudioModel(long fileSize) {
+        // 文件大小阈值（字节）
+        long smallFileThreshold = 2 * 1024 * 1024;  // 2MB
+        long mediumFileThreshold = 5 * 1024 * 1024; // 5MB
+
+        if (fileSize <= smallFileThreshold) {
+            // 小文件使用快速模型
+            return "qwen-audio-turbo-latest";
+        } else if (fileSize <= mediumFileThreshold) {
+            // 中等文件使用平衡模型
+            return "qwen-audio-turbo-latest";
+        } else {
+            // 大文件使用更稳定的模型，但可能较慢
+            return "qwen-audio-turbo-latest";
+        }
+    }
+
+    /**
+     * 根据文件大小计算合适的超时时间
+     */
+    private int calculateTimeoutForFileSize(long fileSize) {
+        // 基础超时时间（秒）
+        int baseTimeout = 30;
+
+        // 每MB增加的超时时间（秒）
+        int timeoutPerMB = 15;
+
+        // 计算文件大小（MB）
+        double fileSizeMB = fileSize / (1024.0 * 1024.0);
+
+        // 计算总超时时间，最小30秒，最大180秒
+        int calculatedTimeout = (int) (baseTimeout + fileSizeMB * timeoutPerMB);
+
+        return Math.min(Math.max(calculatedTimeout, 30), 180);
+    }
+
+    /**
+     * 执行单次音频转录
+     */
+    private String performSingleAudioTranscription(String audioUrl, String model, int timeoutSeconds) throws Exception {
+        log.info("使用模型: {}, 超时时间: {}秒", model, timeoutSeconds);
+
+        // 根据阿里云百炼官方文档，使用MultiModalConversation进行音频转录
+        MultiModalConversation conv = new MultiModalConversation();
+
+        // 构建用户消息，包含音频URL和转录指令
+        MultiModalMessage userMessage = MultiModalMessage.builder()
+            .role(Role.USER.getValue())
+            .content(Arrays.asList(
+                Collections.singletonMap("audio", audioUrl),
+                Collections.singletonMap("text", "请转录这段音频的内容，只返回转录文本，不要添加其他说明。")
+            ))
+            .build();
+
+        // 构建请求参数，包含超时配置
+        MultiModalConversationParam param = MultiModalConversationParam.builder()
+            .model(model)
+            .message(userMessage)
+            .build();
+
+        // 使用CompletableFuture实现超时控制
+        CompletableFuture<MultiModalConversationResult> future = CompletableFuture.supplyAsync(() -> {
+            try {
+                return conv.call(param);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        MultiModalConversationResult result;
+        try {
+            // 等待结果，设置超时时间
+            result = future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new RuntimeException("音频转录超时（" + timeoutSeconds + "秒），请尝试使用较小的音频文件", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("音频转录执行失败", e.getCause());
+        }
+
+        if (result == null || result.getOutput() == null ||
+            result.getOutput().getChoices() == null ||
+            result.getOutput().getChoices().isEmpty()) {
+            throw new RuntimeException("音频转录响应为空");
+        }
+
+        // 提取转录文本
+        String transcriptionText = result.getOutput().getChoices().get(0)
+            .getMessage().getContent().get(0).get("text").toString();
+
+        log.info("音频转录成功，转录文本长度: {} 字符", transcriptionText != null ? transcriptionText.length() : 0);
+
+        return transcriptionText;
     }
 }
