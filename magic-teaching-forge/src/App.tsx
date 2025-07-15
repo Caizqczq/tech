@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import MainLayout from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import CreateWizard from "./pages/CreateWizard";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -15,6 +16,8 @@ import AIGeneration from "./pages/AIGeneration";
 import ResourceManagement from "./pages/ResourceManagement";
 import SmartChat from "./pages/SmartChat";
 import NotFound from "./pages/NotFound";
+import AICreation from "@/components/AICreation";
+import ResourceCenter from "@/components/ResourceCenter";
 
 const queryClient = new QueryClient();
 
@@ -26,18 +29,22 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/create" element={<CreateWizard />} />
-            <Route path="/project/:id" element={<ProjectDetail />} />
-            <Route path="/project/demo" element={<ProjectDetail />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/knowledge" element={<KnowledgeBase />} />
-            <Route path="/upload" element={<MaterialUpload />} />
-            <Route path="/ai-generation" element={<AIGeneration />} />
-            <Route path="/resources" element={<ResourceManagement />} />
-            <Route path="/chat" element={<SmartChat />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="create" element={<CreateWizard />} />
+              <Route path="project/:id" element={<ProjectDetail />} />
+              <Route path="project/demo" element={<ProjectDetail />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="knowledge" element={<KnowledgeBase />} />
+              <Route path="upload" element={<MaterialUpload />} />
+              <Route path="ai-generation" element={<AIGeneration />} />
+              <Route path="ai-creation" element={<AICreation />} />
+              <Route path="resources" element={<ResourceManagement />} />
+              <Route path="resource-center" element={<ResourceCenter />} />
+              <Route path="chat" element={<SmartChat />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
