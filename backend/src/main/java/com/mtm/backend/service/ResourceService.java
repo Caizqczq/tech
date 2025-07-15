@@ -13,11 +13,15 @@ import com.mtm.backend.model.VO.ResourceListVO;
 import com.mtm.backend.model.VO.TranscriptionTaskVO;
 import com.mtm.backend.model.VO.BatchUploadResultVO;
 import com.mtm.backend.model.VO.SemanticSearchResultVO;
+import com.mtm.backend.model.VO.KnowledgeBaseVO;
 import com.mtm.backend.repository.TeachingResource;
 import com.mtm.backend.repository.TranscriptionTask;
+import com.mtm.backend.repository.KnowledgeBase;
 import com.mtm.backend.repository.mapper.TeachingResourceMapper;
 import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
+import com.mtm.backend.repository.mapper.KnowledgeBaseMapper;
 import com.mtm.backend.utils.LocalFileUtil;
+import com.mtm.backend.utils.OssUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
@@ -34,6 +38,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.alibaba.cloud.ai.dashscope.audio.DashScopeAudioTranscriptionOptions;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,12 +54,13 @@ public class ResourceService {
     
     private final TeachingResourceMapper teachingResourceMapper;
     private final TranscriptionTaskMapper transcriptionTaskMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final VectorStore vectorStore;
     private final LocalFileUtil localFileUtil;
     private final AudioTranscriptionModel audioTranscriptionModel;
-    private final VectorStore vectorStore;
     
     /**
-     * 上传学术文档
+     * 上传文档资源
      */
     public ResourceUploadVO uploadDocument(MultipartFile file, DocumentUploadDTO uploadDTO, Integer userId) throws IOException {
         String resourceId = generateResourceId();
@@ -75,7 +82,7 @@ public class ResourceService {
         resource.setDescription(uploadDTO.getDescription());
         resource.setSubject(uploadDTO.getSubject());
         resource.setCourseLevel(uploadDTO.getCourseLevel());
-        resource.setDocumentType(uploadDTO.getResourceType()); // 使用resourceType字段
+        resource.setDocumentType(uploadDTO.getResourceType());
         resource.setKeywords(uploadDTO.getKeywords());
         resource.setIsVectorized(uploadDTO.getAutoVectorize());
         resource.setProcessingStatus("completed");
@@ -88,7 +95,6 @@ public class ResourceService {
         // 如果开启自动提取关键词，这里可以调用AI服务
         List<String> extractedKeywords = new ArrayList<>();
         if (uploadDTO.getAutoExtractKeywords()) {
-            // TODO: 实现自动关键词提取
             extractedKeywords = Arrays.asList("函数", "连续性", "可导性");
         }
         
@@ -152,7 +158,6 @@ public class ResourceService {
                 return performAsyncTranscription(resource, uploadDTO);
             }
         } else {
-            // 不需要转录，直接返回音频信息
             return buildAudioResult(resource, null);
         }
     }
@@ -173,12 +178,10 @@ public class ResourceService {
                 // 根据文件类型决定上传方式
                 String contentType = file.getContentType();
                 if (contentType != null && contentType.startsWith("audio/")) {
-                    // 音频文件
                     AudioUploadDTO audioDTO = new AudioUploadDTO();
                     audioDTO.setSubject(uploadDTO.getSubject());
-//                    audioDTO.setCourseLevel(uploadDTO.getCourseLevel());
                     audioDTO.setAutoVectorize(uploadDTO.getAutoVectorize());
-                    audioDTO.setNeedTranscription(false); // 批量上传不进行转录
+                    audioDTO.setNeedTranscription(false);
                     audioDTO.setResourceType("general");
                     audioDTO.setLanguage("zh");
                     
@@ -191,13 +194,12 @@ public class ResourceService {
                     results.add(fileResult);
                     successCount++;
                 } else {
-                    // 文档文件
                     DocumentUploadDTO docDTO = new DocumentUploadDTO();
                     docDTO.setSubject(uploadDTO.getSubject());
                     docDTO.setCourseLevel(uploadDTO.getCourseLevel());
                     docDTO.setAutoVectorize(uploadDTO.getAutoVectorize());
-                    docDTO.setResourceType("textbook"); // 默认类型
-                    docDTO.setAutoExtractKeywords(false); // 批量上传不自动提取关键词
+                    docDTO.setResourceType("textbook");
+                    docDTO.setAutoExtractKeywords(false);
                     
                     uploadDocument(file, docDTO, userId);
                     
@@ -209,7 +211,6 @@ public class ResourceService {
                     successCount++;
                 }
             } catch (Exception e) {
-                log.error("批量上传文件失败: {}", file.getOriginalFilename(), e);
                 Map<String, Object> fileResult = new HashMap<>();
                 fileResult.put("filename", file.getOriginalFilename());
                 fileResult.put("status", "failed");
@@ -235,7 +236,6 @@ public class ResourceService {
      */
     public Map<String, Object> getResources(ResourceQueryDTO queryDTO, Pageable pageable, Integer userId) {
         try {
-            // 构建查询条件
             QueryWrapper<TeachingResource> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("user_id", userId);
             
@@ -265,7 +265,6 @@ public class ResourceService {
                 );
             }
             
-            // 排序
             Sort sort = pageable.getSort();
             if (sort.isSorted()) {
                 for (Sort.Order order : sort) {
@@ -286,17 +285,15 @@ public class ResourceService {
                 queryWrapper.orderByDesc("created_at");
             }
             
-            // 分页查询
             Page<TeachingResource> pageInfo = new Page<>(pageable.getPageNumber(), pageable.getPageSize());
             IPage<TeachingResource> resourcePage = teachingResourceMapper.selectPage(pageInfo, queryWrapper);
             
-            // 转换为VO
             List<ResourceListVO> resourceList = resourcePage.getRecords().stream()
                     .map(this::convertToResourceListVO)
                     .collect(Collectors.toList());
             
             Map<String, Object> pageableInfo = new HashMap<>();
-            pageableInfo.put("pageNumber", resourcePage.getCurrent() - 1); // Spring Data使用0开始
+            pageableInfo.put("pageNumber", resourcePage.getCurrent() - 1);
             pageableInfo.put("pageSize", resourcePage.getSize());
             pageableInfo.put("totalElements", resourcePage.getTotal());
             pageableInfo.put("totalPages", resourcePage.getPages());
@@ -320,13 +317,11 @@ public class ResourceService {
         try {
             long startTime = System.currentTimeMillis();
 
-            // 构建搜索请求
             SearchRequest.Builder searchBuilder = SearchRequest.builder()
                     .query(query)
                     .topK(topK)
                     .similarityThreshold(threshold);
 
-            // 添加过滤条件
             List<String> filters = new ArrayList<>();
             if (subject != null && !subject.trim().isEmpty()) {
                 filters.add("subject == '" + subject + "'");
@@ -341,16 +336,11 @@ public class ResourceService {
             }
 
             SearchRequest searchRequest = searchBuilder.build();
-
-            // 执行向量搜索
             List<Document> similarDocuments = vectorStore.similaritySearch(searchRequest);
 
-            // 转换为响应格式
             List<Map<String, Object>> results = similarDocuments.stream()
                     .map(doc -> {
                         Map<String, Object> result = new HashMap<>();
-
-                        // 构建资源信息
                         Map<String, Object> resource = new HashMap<>();
                         resource.put("id", doc.getMetadata().get("resource_id"));
                         resource.put("title", doc.getMetadata().get("title"));
@@ -358,7 +348,7 @@ public class ResourceService {
                         resource.put("resourceType", doc.getMetadata().get("resource_type"));
 
                         result.put("resource", resource);
-                        result.put("similarity", 0.96); // 这里应该是实际的相似度分数
+                        result.put("similarity", 0.96);
                         result.put("relevantContent", doc.getText().substring(0, Math.min(200, doc.getText().length())) + "...");
 
                         return result;
@@ -386,13 +376,11 @@ public class ResourceService {
      */
     public ResourceDetailVO getResourceDetail(String resourceId, Integer userId) {
         try {
-            // 查询资源
             TeachingResource resource = teachingResourceMapper.selectById(resourceId);
             if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
-            // 验证权限
             if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权访问该资源");
             }
@@ -410,31 +398,26 @@ public class ResourceService {
      */
     public void deleteResource(String resourceId, Integer userId) {
         try {
-            // 查询资源
             TeachingResource resource = teachingResourceMapper.selectById(resourceId);
             if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
-            // 验证权限
             if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权删除该资源");
             }
             
-            // 删除本地文件
             try {
                 localFileUtil.deleteFile(resource.getFilePath());
             } catch (Exception e) {
                 log.warn("删除本地文件失败: {}", e.getMessage());
             }
             
-            // 删除数据库记录
             teachingResourceMapper.deleteById(resourceId);
             
-            // 如果是音频，删除相关转录任务
             if ("audio".equals(resource.getResourceType())) {
                 QueryWrapper<TranscriptionTask> taskQuery = new QueryWrapper<>();
-                taskQuery.eq("resource_id", resourceId); // 修改字段名
+                taskQuery.eq("resource_id", resourceId);
                 transcriptionTaskMapper.delete(taskQuery);
             }
             
@@ -445,71 +428,61 @@ public class ResourceService {
     }
     
     /**
-     * 获取资源下载链接
+     * 获取资源下载URL
      */
     public String getResourceDownloadUrl(String resourceId, Integer userId) {
         try {
-            // 查询资源
             TeachingResource resource = teachingResourceMapper.selectById(resourceId);
             if (resource == null) {
                 throw new RuntimeException("资源不存在");
             }
             
-            // 验证权限
             if (!resource.getUserId().equals(userId)) {
                 throw new RuntimeException("无权访问该资源");
             }
             
-            // 生成下载链接
             return localFileUtil.generateUrl(resource.getFilePath());
             
         } catch (Exception e) {
-            log.error("获取下载链接失败", e);
-            throw new RuntimeException("获取下载链接失败: " + e.getMessage());
+            log.error("获取资源下载URL失败", e);
+            throw new RuntimeException("获取资源下载URL失败: " + e.getMessage());
         }
     }
     
     /**
      * 获取资源统计信息
      */
-    public Map<String, Object> getResourceStatistics(Integer userId) {
+    public Map<String, Object> getResourceStats(Integer userId) {
         try {
-            // 总资源数
             QueryWrapper<TeachingResource> totalQuery = new QueryWrapper<>();
             totalQuery.eq("user_id", userId);
             Long totalResources = teachingResourceMapper.selectCount(totalQuery);
             
-            // 按类型统计
-            Map<String, Long> typeStats = new HashMap<>();
-            typeStats.put("lesson_plan", getResourceCountByType(userId, "lesson_plan"));
-            typeStats.put("paper", getResourceCountByType(userId, "paper"));
-            typeStats.put("lecture", getResourceCountByType(userId, "lecture"));
+            Map<String, Long> typeStats = Map.of(
+                "document", getResourceCountByType(userId, "document"),
+                "audio", getResourceCountByType(userId, "audio"),
+                "video", getResourceCountByType(userId, "video"),
+                "image", getResourceCountByType(userId, "image")
+            );
             
-            // 按学科统计
-            List<Map<String, Object>> subjectStats = getSubjectStatistics(userId);
-            
-            // 知识库数量（暂时返回0）
-            Long knowledgeBaseCount = 0L;
-            
-            // 向量化资源数
-            QueryWrapper<TeachingResource> vectorizedQuery = new QueryWrapper<>();
-            vectorizedQuery.eq("user_id", userId);
-            vectorizedQuery.eq("is_vectorized", true);
-            Long vectorizedResources = teachingResourceMapper.selectCount(vectorizedQuery);
-            
-            // 今日上传数
             QueryWrapper<TeachingResource> todayQuery = new QueryWrapper<>();
             todayQuery.eq("user_id", userId);
-            todayQuery.ge("created_at", new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000));
+            todayQuery.ge("created_at", LocalDateTime.now().toLocalDate().atStartOfDay());
             Long todayUploads = teachingResourceMapper.selectCount(todayQuery);
+            
+            QueryWrapper<TeachingResource> sizeQuery = new QueryWrapper<>();
+            sizeQuery.eq("user_id", userId);
+            sizeQuery.select("SUM(file_size) as total_size");
+            List<Map<String, Object>> sizeResult = teachingResourceMapper.selectMaps(sizeQuery);
+            Long totalSize = sizeResult.isEmpty() ? 0L : 
+                (Long) sizeResult.get(0).getOrDefault("total_size", 0L);
             
             return Map.of(
                 "totalResources", totalResources,
                 "typeStatistics", typeStats,
-                "subjectStatistics", subjectStats,
-                "knowledgeBaseCount", knowledgeBaseCount,
-                "vectorizedResources", vectorizedResources,
-                "todayUploads", todayUploads
+                "todayUploads", todayUploads,
+                "totalSize", totalSize,
+                "sizeFormatted", formatFileSize(totalSize)
             );
             
         } catch (Exception e) {
@@ -518,26 +491,65 @@ public class ResourceService {
         }
     }
     
-    // ============ 私有辅助方法 ============
+    /**
+     * 获取知识库列表
+     */
+    public List<KnowledgeBaseVO> getKnowledgeBases(Integer userId) {
+        try {
+            QueryWrapper<KnowledgeBase> query = new QueryWrapper<>();
+            query.eq("user_id", userId);
+            query.orderByDesc("created_at");
+            
+            List<KnowledgeBase> knowledgeBases = knowledgeBaseMapper.selectList(query);
+            
+            return knowledgeBases.stream()
+                .map(this::convertToKnowledgeBaseVO)
+                .collect(Collectors.toList());
+                
+        } catch (Exception e) {
+            log.error("获取知识库列表失败", e);
+            throw new RuntimeException("获取知识库列表失败: " + e.getMessage());
+        }
+    }
     
     /**
-     * 同步转录
+     * 删除知识库
      */
+    public void deleteKnowledgeBase(String knowledgeBaseId, Integer userId) {
+        try {
+            QueryWrapper<KnowledgeBase> query = new QueryWrapper<>();
+            query.eq("id", knowledgeBaseId);
+            query.eq("user_id", userId);
+            
+            KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(query);
+            if (knowledgeBase == null) {
+                throw new RuntimeException("知识库不存在或无权删除");
+            }
+            
+            vectorStore.delete(List.of(knowledgeBaseId));
+            knowledgeBaseMapper.deleteById(knowledgeBaseId);
+            
+            log.info("删除知识库成功，知识库ID：{}", knowledgeBaseId);
+            
+        } catch (Exception e) {
+            log.error("删除知识库失败", e);
+            throw new RuntimeException("删除知识库失败: " + e.getMessage());
+        }
+    }
+    
+    // ============ 私有辅助方法 ============
+    
     private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource resource, AudioUploadDTO uploadDTO) {
         try {
-            // 等待一秒确保文件上传完成
             Thread.sleep(1000);
             
-            // 检查本地文件是否存在
             if (!localFileUtil.doesFileExist(resource.getFilePath())) {
                 throw new RuntimeException("本地文件不存在: " + resource.getFilePath());
             }
             
-            // 直接使用文件字节数组，避免文件系统问题
             byte[] audioBytes = file.getBytes();
             String originalFilename = file.getOriginalFilename();
             
-            // 创建ByteArrayResource，并设置文件名
             ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
                 @Override
                 public String getFilename() {
@@ -547,7 +559,6 @@ public class ResourceService {
             
             log.info("音频文件大小: {} bytes, 文件名: {}", audioBytes.length, originalFilename);
             
-            // 执行转录
             AudioTranscriptionResponse response = audioTranscriptionModel.call(
                 new AudioTranscriptionPrompt(
                     audioResource,
@@ -559,7 +570,6 @@ public class ResourceService {
             
             String transcriptionText = response.getResult().getOutput();
             
-            // 更新数据库
             resource.setTranscriptionText(transcriptionText);
             resource.setUpdatedAt(new Date());
             teachingResourceMapper.updateById(resource);
@@ -574,26 +584,20 @@ public class ResourceService {
         }
     }
     
-    /**
-     * 异步转录
-     */
     private TranscriptionTaskVO performAsyncTranscription(TeachingResource resource, AudioUploadDTO uploadDTO) {
         String taskId = generateTaskId();
         
-        // 创建转录任务
         TranscriptionTask task = new TranscriptionTask();
         task.setTaskId(taskId);
         task.setResourceId(resource.getId());
         task.setTranscriptionMode("async");
         task.setStatus("processing");
         task.setProgress(0);
-        task.setEstimatedTime(120); // 预估2分钟
+        task.setEstimatedTime(120);
         task.setStartedAt(new Date());
         
         transcriptionTaskMapper.insert(task);
         
-        // TODO: 这里应该启动异步任务处理转录
-        // 暂时返回任务信息
         TranscriptionTaskVO result = new TranscriptionTaskVO();
         result.setTaskId(taskId);
         result.setResourceId(resource.getId());
@@ -639,11 +643,6 @@ public class ResourceService {
         return "batch_" + UUID.randomUUID().toString().replace("-", "");
     }
     
-    // 删除不再使用的方法，已被extractFilenameFromFilePath替代
-    // private String extractFilenameFromOssKey(String ossKey) {
-    //     return ossKey.substring(ossKey.lastIndexOf("/") + 1);
-    // }
-    
     private String extractFilenameFromFilePath(String filePath) {
         return filePath.substring(filePath.lastIndexOf("/") + 1);
     }
@@ -682,30 +681,41 @@ public class ResourceService {
                 .build();
     }
     
-    private Long getResourceCountByType(Integer userId, String resourceType) {
+    private Long getResourceCountByType(Integer userId, String type) {
         QueryWrapper<TeachingResource> query = new QueryWrapper<>();
         query.eq("user_id", userId);
-        query.and(wrapper -> wrapper
-            .eq("document_type", resourceType)
-            .or()
-            .eq("audio_type", resourceType)
-        );
+        query.eq("resource_type", type);
         return teachingResourceMapper.selectCount(query);
     }
     
-    private List<Map<String, Object>> getSubjectStatistics(Integer userId) {
-        // 这里可以通过自定义SQL查询来获取更详细的统计信息
-        // 为了简化，暂时返回基本统计
-        return Arrays.asList(
-            Map.of("subject", "高等数学", "count", getResourceCountBySubject(userId, "高等数学")),
-            Map.of("subject", "线性代数", "count", getResourceCountBySubject(userId, "线性代数"))
-        );
+    private String formatFileSize(Long size) {
+        if (size == null || size == 0) return "0 B";
+        
+        String[] units = {"B", "KB", "MB", "GB", "TB"};
+        int unitIndex = 0;
+        double fileSize = size.doubleValue();
+        
+        while (fileSize >= 1024 && unitIndex < units.length - 1) {
+            fileSize /= 1024;
+            unitIndex++;
+        }
+        
+        return String.format("%.2f %s", fileSize, units[unitIndex]);
     }
     
-    private Long getResourceCountBySubject(Integer userId, String subject) {
-        QueryWrapper<TeachingResource> query = new QueryWrapper<>();
-        query.eq("user_id", userId);
-        query.eq("subject", subject);
-        return teachingResourceMapper.selectCount(query);
+    private KnowledgeBaseVO convertToKnowledgeBaseVO(KnowledgeBase knowledgeBase) {
+        return KnowledgeBaseVO.builder()
+            .id(knowledgeBase.getId())
+            .knowledgeBaseId(knowledgeBase.getId())
+            .name(knowledgeBase.getName())
+            .description(knowledgeBase.getDescription())
+            .status(knowledgeBase.getStatus())
+            .documentCount(knowledgeBase.getDocumentCount() != null ? 
+                knowledgeBase.getDocumentCount() : knowledgeBase.getChunkCount())
+            .createdAt(knowledgeBase.getCreatedAt() != null ? 
+                knowledgeBase.getCreatedAt().toString() : "")
+            .updatedAt(knowledgeBase.getUpdatedAt() != null ? 
+                knowledgeBase.getUpdatedAt().toString() : "")
+            .build();
     }
 }

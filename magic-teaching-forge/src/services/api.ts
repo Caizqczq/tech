@@ -8,11 +8,12 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token'); // 改为 'token'
     
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
@@ -27,7 +28,6 @@ class ApiService {
         throw new Error(errorData.message || 'API request failed');
       }
       
-      // 对于成功的响应，直接返回数据
       const data = await response.json();
       return data;
     } catch (error) {
@@ -77,7 +77,7 @@ class ApiService {
   }
 
   async streamChat(query: string = '你好', chatId: string = '1'): Promise<Response> {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token'); // 改为 'token'
     const params = new URLSearchParams();
     params.append('query', query);
     params.append('chat-id', chatId);
@@ -240,7 +240,7 @@ class ApiService {
       topic?: string;
     };
   }): Promise<Response> {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token'); // 改为 'token'
     
     return fetch(`${API_BASE_URL}/chat/assistant/stream`, {
       method: 'POST',
@@ -272,30 +272,29 @@ class ApiService {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('size', size.toString());
-    return this.request(`/conversations?${params.toString()}`);
+    return this.request(`/chat/conversations?${params.toString()}`); // 添加 /chat 前缀
   }
 
+  // 获取对话详情
   async getConversationDetail(conversationId: string): Promise<{
-    conversationId: string;
-    title: string;
-    messages: {
-      messageId: string;
+    conversation: any;
+    messages: Array<{
       role: string;
       content: string;
       timestamp: string;
-    }[];
-    createdAt: string;
-    updatedAt: string;
+    }>;
   }> {
-    return this.request(`/conversations/${conversationId}`);
+    return this.request(`/chat/conversations/${conversationId}`, {
+      method: 'GET',
+    });
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    return this.request(`/conversations/${conversationId}`, { method: 'DELETE' });
+    return this.request(`/chat/conversations/${conversationId}`, { method: 'DELETE' }); // 添加 /chat 前缀
   }
 
   async clearAllConversations(): Promise<void> {
-    return this.request('/conversations/clear', { method: 'DELETE' });
+    return this.request('/chat/conversations', { method: 'DELETE' }); // 添加 /chat 前缀
   }
 
   async updateConversationTitle(conversationId: string, title: string): Promise<{
@@ -303,7 +302,7 @@ class ApiService {
     title: string;
     updatedAt: string;
   }> {
-    return this.request(`/conversations/${conversationId}/title`, {
+    return this.request(`/chat/conversations/${conversationId}/title`, {
       method: 'PUT',
       body: JSON.stringify({ title }),
     });
@@ -319,7 +318,7 @@ class ApiService {
       count: number;
     }[];
   }> {
-    return this.request('/conversations/stats');
+    return this.request('/chat/conversations/stats');
   }
 
   // 智能教学资源管理相关

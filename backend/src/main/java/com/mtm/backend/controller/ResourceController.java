@@ -8,6 +8,7 @@ import com.mtm.backend.model.DTO.RAGQueryDTO;
 import com.mtm.backend.model.DTO.ResourceQueryDTO;
 import com.mtm.backend.model.VO.ResourceUploadVO;
 import com.mtm.backend.model.VO.ResourceDetailVO;
+import com.mtm.backend.model.VO.KnowledgeBaseVO;
 import com.mtm.backend.service.KnowledgeBaseService;
 import com.mtm.backend.service.RAGService;
 import com.mtm.backend.service.ResourceService;
@@ -26,6 +27,7 @@ import reactor.core.publisher.Flux;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -608,58 +610,83 @@ public class ResourceController {
         }
     }
 
-    /** 5.5.2 获取资源下载链接 */
-    @GetMapping("/{resourceId}/download")
-    public ResponseEntity<?> getResourceDownloadUrl(@PathVariable String resourceId) {
+    /**
+     * 获取资源下载URL
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<?> getResourceDownloadUrl(@PathVariable String id) {
         try {
-            // 验证用户登录
             Integer userId = ThreadLocalUtil.get();
             if (userId == null) {
-                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+                return ResponseEntity.status(401).body("用户未登录");
             }
-
-            // 参数验证
-            if (resourceId == null || resourceId.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
-            }
-
-            String downloadUrl = resourceService.getResourceDownloadUrl(resourceId, userId);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("resourceId", resourceId);
-            result.put("downloadUrl", downloadUrl);
-            result.put("expiresIn", 3600); // 1小时有效期
-            return ResponseEntity.ok(result);
-
-        } catch (RuntimeException e) {
-            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权访问")) {
-                return ResponseEntity.notFound().build();
-            }
-            log.error("获取下载链接失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
+            
+            String downloadUrl = resourceService.getResourceDownloadUrl(id, userId);
+            return ResponseEntity.ok(Map.of("downloadUrl", downloadUrl));
+            
         } catch (Exception e) {
             log.error("获取下载链接失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取下载链接失败: " + e.getMessage()));
+            return ResponseEntity.status(500).body("获取下载链接失败: " + e.getMessage());
         }
     }
-
-    /** 5.5.3 资源统计信息 */
-    @GetMapping("/statistics")
-    public ResponseEntity<?> getResourceStatistics() {
+    
+    /**
+     * 获取资源统计信息
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<?> getResourceStats() {
         try {
-            // 验证用户登录
             Integer userId = ThreadLocalUtil.get();
             if (userId == null) {
-                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+                return ResponseEntity.status(401).body("用户未登录");
             }
-
-            Object result = resourceService.getResourceStatistics(userId);
-            return ResponseEntity.ok(result);
-
+            
+            Map<String, Object> stats = resourceService.getResourceStats(userId);
+            return ResponseEntity.ok(stats);
+            
         } catch (Exception e) {
             log.error("获取资源统计失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取资源统计失败: " + e.getMessage()));
+            return ResponseEntity.status(500).body("获取统计失败: " + e.getMessage());
         }
     }
-
+    
+    /**
+     * 获取知识库列表
+     */
+    @GetMapping("/knowledge-bases")
+    public ResponseEntity<?> getKnowledgeBases() {
+        try {
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body("用户未登录");
+            }
+            
+            List<KnowledgeBaseVO> knowledgeBases = resourceService.getKnowledgeBases(userId);
+            return ResponseEntity.ok(knowledgeBases);
+            
+        } catch (Exception e) {
+            log.error("获取知识库列表失败", e);
+            return ResponseEntity.status(500).body("获取知识库列表失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除知识库
+     */
+    @DeleteMapping("/knowledge-base/{id}")
+    public ResponseEntity<?> deleteKnowledgeBase(@PathVariable String id) {
+        try {
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body("用户未登录");
+            }
+            
+            resourceService.deleteKnowledgeBase(id, userId);
+            return ResponseEntity.ok("知识库删除成功");
+            
+        } catch (Exception e) {
+            log.error("删除知识库失败", e);
+            return ResponseEntity.status(500).body("删除知识库失败: " + e.getMessage());
+        }
+    }
 }

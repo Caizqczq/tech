@@ -24,10 +24,10 @@ public class MessageConverter {
     public ChatMessageVO convertToChatMessageVO(Message message) {
         return ChatMessageVO.builder()
                 .messageId(generateMessageId())
-                .messageType(convertMessageType(message.getMessageType()))
-                .content(message.getText()) // 使用getText()方法
+                .role(convertMessageType(message.getMessageType())) // 改为role字段
+                .content(message.getText())
                 .metadata(extractMetadata(message))
-                .createdAt(LocalDateTime.now()) // Spring AI Message没有时间戳，使用当前时间
+                .createdAt(LocalDateTime.now())
                 .build();
     }
     

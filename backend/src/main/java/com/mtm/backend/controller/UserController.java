@@ -49,8 +49,10 @@ public class UserController {
     }
 
     /** 1.2 用户登录 */
-    @PostMapping("login")
+    @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginDTO loginDTO) {
+        log.info("Login request received for email: {}", loginDTO.getEmail());
+        
         if (loginDTO.getEmail() == null || loginDTO.getPassword() == null) {
             Map<String, Object> error = new HashMap<>();
             error.put("timestamp", new Date().toString());
@@ -60,22 +62,37 @@ public class UserController {
             error.put("path", "/api/auth/login");
             return ResponseEntity.badRequest().body(error);
         }
-        LoginVO loginVO = userService.loginUser(loginDTO);
-        if (loginVO == null) {
+        
+        try {
+            LoginVO loginVO = userService.loginUser(loginDTO);
+            if (loginVO == null) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("timestamp", new Date().toString());
+                error.put("status", 401);
+                error.put("error", "Unauthorized");
+                error.put("message", "邮箱或密码错误");
+                error.put("path", "/api/auth/login");
+                return ResponseEntity.status(401).body(error);
+            }
+            
+            String token = jwtUtil.generateToken(loginVO.getId(), loginVO.getUsername());
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("user", loginVO);
+
+            log.info("Login successful for user: {}", loginVO.getUsername());
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Login error: ", e);
             Map<String, Object> error = new HashMap<>();
             error.put("timestamp", new Date().toString());
-            error.put("status", 401);
-            error.put("error", "Unauthorized");
-            error.put("message", "邮箱或密码错误");
+            error.put("status", 500);
+            error.put("error", "Internal Server Error");
+            error.put("message", "登录过程中发生错误");
             error.put("path", "/api/auth/login");
-            return ResponseEntity.status(401).body(error);
+            return ResponseEntity.status(500).body(error);
         }
-        String token = jwtUtil.generateToken(loginVO.getId(), loginVO.getUsername());
-        Map<String, Object> response = new HashMap<>();
-        response.put("token", token);
-        response.put("user",loginVO);
-
-        return ResponseEntity.ok(response);
     }
 
     /** 1.3 用户登出 */

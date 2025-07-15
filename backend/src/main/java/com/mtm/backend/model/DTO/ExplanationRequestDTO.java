@@ -9,15 +9,15 @@ import lombok.AllArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ContentAnalysisDTO {
-    // 前端必需字段
-    private String content;
-    private String analysisType;
-    private String requirements;
-    
-    // 原有字段，保持向后兼容
+public class ExplanationRequestDTO {
+    private String topic;
     private String subject;
     private String courseLevel;
-    private String analysisScope;
+    private String style;
+    private String length;
+    private Boolean includeExamples;
+    private Boolean includeProofs;
+    private Boolean includeApplications;
     private String targetAudience;
+    private String language;
 }

@@ -4,6 +4,10 @@ import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.dashscope.chat.MessageFormat;
 import com.alibaba.cloud.ai.dashscope.common.DashScopeApiConstants;
 import com.alibaba.cloud.ai.memory.jdbc.MysqlChatMemoryRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mtm.backend.repository.Conversation;
+import com.mtm.backend.repository.mapper.ConversationMapper;
+import com.mtm.backend.utils.ThreadLocalUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +22,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.MimeTypeUtils;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +36,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Date;
+import java.util.UUID;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -42,23 +48,23 @@ public class ChatController {
     private static final String DEFAULT_PROMPT = "不要返回markdown";
 
     private final ChatClient dashScopeChatClient;
+    private final ConversationMapper conversationMapper;
     private final JdbcTemplate jdbcTemplate;
 
-
-    public ChatController(ChatModel chatModel, JdbcTemplate jdbcTemplate) {
-
-        ChatMemoryRepository chatMemoryRepository=MysqlChatMemoryRepository.mysqlBuilder()
+    @Autowired
+    public ChatController(ChatModel chatModel, JdbcTemplate jdbcTemplate, ConversationMapper conversationMapper) {
+        ChatMemoryRepository chatMemoryRepository = MysqlChatMemoryRepository.mysqlBuilder()
                 .jdbcTemplate(jdbcTemplate)
                 .build();
-        ChatMemory chatMemory= MessageWindowChatMemory.builder()
+        ChatMemory chatMemory = MessageWindowChatMemory.builder()
                 .chatMemoryRepository(chatMemoryRepository)
                 .build();
 
-      	this.dashScopeChatClient = ChatClient.builder(chatModel)
+        this.dashScopeChatClient = ChatClient.builder(chatModel)
                 .defaultSystem(DEFAULT_PROMPT)
                 .defaultAdvisors(
                         new SimpleLoggerAdvisor(),
-                       MessageChatMemoryAdvisor.builder(chatMemory).build()
+                        MessageChatMemoryAdvisor.builder(chatMemory).build()
                 )
                 .defaultOptions(
                         DashScopeChatOptions.builder()
@@ -66,8 +72,10 @@ public class ChatController {
                                 .build()
                 )
                 .build();
+        this.conversationMapper = conversationMapper;
         this.jdbcTemplate = jdbcTemplate;
     }
+
 
     /** 2.1 简单对话接口 */
     @GetMapping("/simple/chat")
@@ -76,19 +84,52 @@ public class ChatController {
         try {
             log.info("simple chat query:{},chat-id:{}", query, chatId);
             
+            // 验证用户登录
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录", "/api/simple/chat"));
+            }
+            
             ChatResponse response = dashScopeChatClient.prompt(query)
                     .advisors(a->a.param(ChatMemory.CONVERSATION_ID,chatId))
                     .call().chatResponse();
             
+            // 保存对话记录到conversations表
+            String conversationId = chatId;
+            try {
+                // 如果是默认chatId，生成新的conversationId
+                if (chatId.equals("1")) {
+                    conversationId = "simple_chat_" + UUID.randomUUID().toString().replace("-", "");
+                }
+                
+                log.info("准备保存对话记录: conversationId={}, userId={}", conversationId, userId);
+                
+                // 构建简单的上下文信息
+                Map<String, Object> contextObj = Map.of(
+                    "mode", "simple",
+                    "query", query
+                );
+                
+                // 使用正确的scenario值：general_chat
+                saveConversation(conversationId, userId, "简单对话", "general_chat", contextObj);
+                log.info("对话记录保存成功: conversationId={}", conversationId);
+                
+            } catch (Exception e) {
+                log.error("保存简单对话记录失败: conversationId={}", conversationId, e);
+                // 不影响主要功能，继续返回结果
+            }
+            
             Map<String, Object> result = new HashMap<>();
             result.put("content", response.getResult().getOutput().getText());
-            result.put("conversationId", chatId);
+            result.put("conversationId", conversationId); // 返回实际的conversationId
             result.put("usage", Map.of(
                 "promptTokens", response.getMetadata().getUsage().getPromptTokens(),
                 "completionTokens", response.getMetadata().getUsage().getCompletionTokens(),
                 "totalTokens", response.getMetadata().getUsage().getTotalTokens()
             ));
             result.put("responseTime", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            result.put("model", "qwen-plus");
+            result.put("scenario", "general_chat"); // 修改为正确的scenario值
             
             return ResponseEntity.ok(result);
             
@@ -247,5 +288,44 @@ public class ChatController {
     
     public JdbcTemplate getJdbcTemplate() {
         return jdbcTemplate;
+    }
+
+    // 添加保存对话的方法
+    private void saveConversation(String conversationId, Integer userId, String title, String scenario, Object contextObj) {
+        try {
+            log.info("开始保存对话记录: conversationId={}, userId={}, title={}, scenario={}", 
+                    conversationId, userId, title, scenario);
+            
+            ObjectMapper objectMapper = new ObjectMapper();
+            String contextInfo = objectMapper.writeValueAsString(contextObj);
+            
+            log.info("上下文信息: {}", contextInfo);
+
+            Conversation conversation = Conversation.builder()
+                    .id(conversationId)
+                    .userId(userId)
+                    .title(title)
+                    .scenario(scenario)
+                    .contextInfo(contextInfo)
+                    .totalMessages(0)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            log.info("准备插入的对话对象: {}", conversation);
+            
+            int result = conversationMapper.insert(conversation);
+            log.info("插入结果: result={}", result);
+            
+            if (result > 0) {
+                log.info("对话记录保存成功: conversationId={}", conversationId);
+            } else {
+                log.warn("对话记录保存失败，insert返回值为: {}", result);
+            }
+
+        } catch (Exception e) {
+            log.error("保存对话记录失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+            throw new RuntimeException("保存对话记录失败: " + e.getMessage());
+        }
     }
 }

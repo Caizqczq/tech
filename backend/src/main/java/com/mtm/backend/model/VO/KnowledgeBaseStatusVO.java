@@ -1,15 +1,19 @@
 package com.mtm.backend.model.VO;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Date;
 
 /**
- * 知识库状态VO
+ * 知识库状态视图对象
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class KnowledgeBaseStatusVO {
     
     /**
@@ -23,7 +27,7 @@ public class KnowledgeBaseStatusVO {
     private String status;
     
     /**
-     * 进度
+     * 进度百分比
      */
     private Integer progress;
     
@@ -33,12 +37,12 @@ public class KnowledgeBaseStatusVO {
     private Integer resourceCount;
     
     /**
-     * 分块数量
+     * 文档块数量
      */
     private Integer chunkCount;
     
     /**
-     * 消息
+     * 状态消息
      */
     private String message;
     

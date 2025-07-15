@@ -20,15 +20,15 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-//        registry.addInterceptor(jwtInterceptor)
-//                .addPathPatterns("/**")
-//                .excludePathPatterns("/api/auth/login","/api/auth/register");
+        registry.addInterceptor(jwtInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register", "/api/auth/hello");
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("*")
+                .allowedOriginPatterns("*") // 确保使用 allowedOriginPatterns
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true)
@@ -58,33 +58,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-        // 配置内容协商策略
         configurer
-                // 启用路径扩展名策略
-                .favorPathExtension(true)
-                // 启用参数策略
-                .favorParameter(false)
-                // 忽略Accept头
-                .ignoreAcceptHeader(false)
-                // 设置默认内容类型
-                .defaultContentType(MediaType.APPLICATION_OCTET_STREAM)
-                // 配置媒体类型映射
-                .mediaType("pdf", MediaType.APPLICATION_PDF)
-                .mediaType("doc", MediaType.valueOf("application/msword"))
-                .mediaType("docx", MediaType.valueOf("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
-                .mediaType("ppt", MediaType.valueOf("application/vnd.ms-powerpoint"))
-                .mediaType("pptx", MediaType.valueOf("application/vnd.openxmlformats-officedocument.presentationml.presentation"))
-                .mediaType("txt", MediaType.TEXT_PLAIN)
-                .mediaType("md", MediaType.TEXT_MARKDOWN)
-                .mediaType("mp3", MediaType.valueOf("audio/mpeg"))
-                .mediaType("wav", MediaType.valueOf("audio/wav"))
-                .mediaType("m4a", MediaType.valueOf("audio/mp4"))
-                .mediaType("flac", MediaType.valueOf("audio/flac"))
-                .mediaType("jpg", MediaType.IMAGE_JPEG)
-                .mediaType("jpeg", MediaType.IMAGE_JPEG)
-                .mediaType("png", MediaType.IMAGE_PNG)
-                .mediaType("gif", MediaType.IMAGE_GIF);
-        
-        log.info("内容协商配置完成");
+            .favorParameter(false)
+            .favorPathExtension(false)
+            .ignoreAcceptHeader(false)
+            .defaultContentType(MediaType.APPLICATION_JSON)
+            .mediaType("json", MediaType.APPLICATION_JSON);
     }
 }

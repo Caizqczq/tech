@@ -81,6 +81,7 @@ public class KnowledgeBaseService {
             processDocumentsAsync(knowledgeBaseId, resources);
             
             return KnowledgeBaseVO.builder()
+                    .id(knowledgeBaseId)
                     .knowledgeBaseId(knowledgeBaseId)
                     .taskId(taskId)
                     .message("知识库构建任务已启动")

@@ -10,6 +10,7 @@ import com.mtm.backend.model.DTO.ChatAssistantDTO;
 import com.mtm.backend.model.VO.ChatResponseVO;
 import com.mtm.backend.repository.Conversation;
 import com.mtm.backend.repository.mapper.ConversationMapper;
+import com.mtm.backend.enums.ConversationScenario;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -197,10 +198,20 @@ public class TeachingChatService {
                     .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call().chatResponse();
 
-            // 保存对话记录（消息由Spring AI自动管理）
-            // 只在新对话时保存conversations表记录，避免重复保存
-            if (assistantDTO.getConversationId() == null) {
-                saveConversation(conversationId, userId, "智能对话助手", "general_chat", assistantDTO);
+            // 保存对话记录
+            try {
+                // 检查对话是否已存在
+                Conversation existingConversation = conversationMapper.selectById(conversationId);
+                
+                if (existingConversation == null) {
+                    log.info("保存新的智能助手对话: conversationId={}, userId={}", conversationId, userId);
+                    saveConversation(conversationId, userId, "智能对话助手", ConversationScenario.GENERAL_CHAT.getCode(), assistantDTO);
+                } else {
+                    log.info("对话已存在，跳过保存: conversationId={}", conversationId);
+                }
+            } catch (Exception e) {
+                log.error("保存智能助手对话记录失败: conversationId={}", conversationId, e);
+                // 不影响主要功能，继续返回结果
             }
             
             // 构建响应
@@ -214,7 +225,7 @@ public class TeachingChatService {
                     ))
                     .responseTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                     .model("qwen-plus")
-                    .scenario("general_chat")
+                    .scenario(ConversationScenario.GENERAL_CHAT.getCode())
                     .build();
                     
         } catch (Exception e) {
@@ -399,12 +410,18 @@ public class TeachingChatService {
         return prompt.toString();
     }
     
+    /**
+     * 保存对话记录
+     */
     private void saveConversation(String conversationId, Integer userId, String title, String scenario, Object contextObj) {
         try {
-            log.debug("开始保存对话记录: conversationId={}, userId={}, title={}, scenario={}",
-                     conversationId, userId, title, scenario);
-
+            log.info("开始保存对话记录: conversationId={}, userId={}, title={}, scenario={}", 
+                    conversationId, userId, title, scenario);
+            
+            ObjectMapper objectMapper = new ObjectMapper();
             String contextInfo = objectMapper.writeValueAsString(contextObj);
+            
+            log.info("上下文信息: {}", contextInfo);
 
             Conversation conversation = Conversation.builder()
                     .id(conversationId)
@@ -413,18 +430,24 @@ public class TeachingChatService {
                     .scenario(scenario)
                     .contextInfo(contextInfo)
                     .totalMessages(0)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
                     .build();
 
+            log.info("准备插入的对话对象: {}", conversation);
+            
             int result = conversationMapper.insert(conversation);
-            log.debug("对话记录保存结果: result={}, conversationId={}", result, conversationId);
-
-            if (result <= 0) {
+            log.info("插入结果: result={}", result);
+            
+            if (result > 0) {
+                log.info("对话记录保存成功: conversationId={}", conversationId);
+            } else {
                 log.warn("对话记录保存失败，insert返回值为: {}", result);
             }
+
         } catch (Exception e) {
-            log.error("保存对话失败: conversationId={}, userId={}, title={}, scenario={}",
-                     conversationId, userId, title, scenario, e);
-            // 不抛出异常，避免影响主要业务流程
+            log.error("保存对话记录失败: conversationId={}, error={}", conversationId, e.getMessage(), e);
+            throw new RuntimeException("保存对话记录失败: " + e.getMessage());
         }
     }
 }

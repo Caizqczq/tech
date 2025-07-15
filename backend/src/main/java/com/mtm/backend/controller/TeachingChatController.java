@@ -70,17 +70,37 @@ public class TeachingChatController {
                 return ResponseEntity.status(401).body(createErrorResponse("用户未登录", "/api/chat/teaching-advice"));
             }
             
-            // 验证必要参数
-            if (adviceDTO.getQuery() == null || adviceDTO.getQuery().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(createErrorResponse("问题内容不能为空", "/api/chat/teaching-advice"));
+            // 参数兼容性处理
+            if (adviceDTO.getCourseLevel() == null && adviceDTO.getGrade() != null) {
+                adviceDTO.setCourseLevel(adviceDTO.getGrade());
             }
             
+            // 构建查询内容，兼容新旧参数格式
+            if (adviceDTO.getQuery() == null || adviceDTO.getQuery().trim().isEmpty()) {
+                if (adviceDTO.getTopic() != null && !adviceDTO.getTopic().trim().isEmpty()) {
+                    String query = String.format("请为%s学科%s年级的%s主题提供教学建议，难度要求：%s", 
+                        adviceDTO.getSubject() != null ? adviceDTO.getSubject() : "相关",
+                        adviceDTO.getGrade() != null ? adviceDTO.getGrade() : "适当",
+                        adviceDTO.getTopic(),
+                        adviceDTO.getDifficulty() != null ? adviceDTO.getDifficulty() : "中等");
+                    
+                    if (adviceDTO.getRequirements() != null && !adviceDTO.getRequirements().trim().isEmpty()) {
+                        query += "，特殊要求：" + adviceDTO.getRequirements();
+                    }
+                    
+                    adviceDTO.setQuery(query);
+                } else {
+                    return ResponseEntity.badRequest().body(createErrorResponse("问题内容或主题不能为空", "/api/chat/teaching-advice"));
+                }
+            }
+            
+            log.info("用户{}请求教学建议，主题：{}", userId, adviceDTO.getTopic());
             Object result = teachingChatService.getTeachingAdvice(adviceDTO, userId);
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
             log.error("获取教学建议失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("获取教学建议失败: " + e.getMessage(), "/api/chat/teaching-advice"));
+            return ResponseEntity.status(500).body(createErrorResponse("获取教学建议失败: " + e.getMessage(), "/api/chat/teaching-advice"));
         }
     }
     
@@ -103,12 +123,13 @@ public class TeachingChatController {
                 return ResponseEntity.badRequest().body(createErrorResponse("分析类型不能为空", "/api/chat/content-analysis"));
             }
             
+            log.info("用户{}请求内容分析，类型：{}", userId, analysisDTO.getAnalysisType());
             Object result = teachingChatService.analyzeContent(analysisDTO, userId);
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
             log.error("内容分析失败", e);
-            return ResponseEntity.internalServerError().body(createErrorResponse("内容分析失败: " + e.getMessage(), "/api/chat/content-analysis"));
+            return ResponseEntity.status(500).body(createErrorResponse("内容分析失败: " + e.getMessage(), "/api/chat/content-analysis"));
         }
     }
     

@@ -1,15 +1,19 @@
 package com.mtm.backend.model.VO;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Date;
 
 /**
- * 知识库列表VO
+ * 知识库列表视图对象
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class KnowledgeBaseListVO {
     
     /**
@@ -23,7 +27,7 @@ public class KnowledgeBaseListVO {
     private String name;
     
     /**
-     * 知识库描述
+     * 描述
      */
     private String description;
     
@@ -48,7 +52,7 @@ public class KnowledgeBaseListVO {
     private Integer resourceCount;
     
     /**
-     * 分块数量
+     * 文档块数量
      */
     private Integer chunkCount;
     

@@ -2,32 +2,24 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Wand2,
-  FileText,
-  PresentationChart,
-  BookOpen,
-  Brain,
-  Sparkles,
-  Clock,
-  Target,
-  Settings,
-  Play,
+import { 
+  Presentation, // 改为 Presentation
+  BookOpen, 
+  FileText, 
+  Sparkles, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle,
   Download,
   Eye,
-  RefreshCw,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Plus,
-  Lightbulb,
-  GraduationCap,
-  Calculator,
-  Microscope
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 
 interface GenerationTask {
@@ -84,7 +76,7 @@ const AICreation: React.FC = () => {
       id: 'ppt',
       title: 'PPT课件生成',
       description: '智能生成专业学术PPT课件',
-      icon: PresentationChart,
+      icon: Presentation, // 改为 Presentation
       color: 'from-blue-500 to-indigo-600',
       features: ['自动排版', '公式渲染', '图表生成', '模板适配']
     },

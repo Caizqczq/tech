@@ -63,6 +63,12 @@ const MainLayout: React.FC = () => {
       gradient: 'from-blue-500 to-purple-600'
     },
     { 
+      icon: MessageSquare, 
+      label: 'AI对话', 
+      path: '/chat', 
+      gradient: 'from-green-500 to-teal-600'
+    },
+    { 
       icon: Wand2, 
       label: 'AI创作', 
       path: '/ai-creation', 

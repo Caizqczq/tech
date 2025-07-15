@@ -42,34 +42,60 @@ public class SpringAiChatMemoryAdapter {
     public Map<String, Object> getUserConversations(Integer userId, Integer page, Integer limit, 
                                                    String scenario, LocalDateTime startDate, LocalDateTime endDate) {
         try {
+            log.info("开始查询用户对话列表: userId={}, page={}, limit={}, scenario={}", userId, page, limit, scenario);
+            
             // 构建查询条件
             QueryWrapper<Conversation> queryWrapper = new QueryWrapper<>();
             queryWrapper.eq("user_id", userId);
             
             if (scenario != null && !scenario.trim().isEmpty()) {
                 queryWrapper.eq("scenario", scenario);
+                log.info("添加场景过滤条件: scenario={}", scenario);
             }
             
             if (startDate != null) {
                 queryWrapper.ge("created_at", startDate);
+                log.info("添加开始时间过滤条件: startDate={}", startDate);
             }
             
             if (endDate != null) {
                 queryWrapper.le("created_at", endDate);
+                log.info("添加结束时间过滤条件: endDate={}", endDate);
             }
             
             queryWrapper.orderByDesc("updated_at");
             
+            // 先测试不分页的查询
+            List<Conversation> allConversations = conversationMapper.selectList(queryWrapper);
+            log.info("不分页查询结果: 总数={}", allConversations.size());
+            for (Conversation conv : allConversations) {
+                log.info("对话记录: id={}, title={}, userId={}, scenario={}, createdAt={}", 
+                        conv.getId(), conv.getTitle(), conv.getUserId(), conv.getScenario(), conv.getCreatedAt());
+            }
+            
             // 分页查询
             Page<Conversation> pageInfo = new Page<>(page != null ? page : 1, limit != null ? limit : 10);
+            log.info("分页参数: current={}, size={}", pageInfo.getCurrent(), pageInfo.getSize());
+            
             IPage<Conversation> conversationPage = conversationMapper.selectPage(pageInfo, queryWrapper);
+            
+            log.info("分页查询结果: total={}, records={}, current={}, size={}", 
+                    conversationPage.getTotal(), 
+                    conversationPage.getRecords().size(),
+                    conversationPage.getCurrent(),
+                    conversationPage.getSize());
             
             // 转换为VO并获取最后一条消息
             List<ConversationVO> conversationVOs = conversationPage.getRecords().stream()
-                    .map(this::convertToConversationVO)
+                    .map(conversation -> {
+                        log.debug("处理对话: id={}, title={}", conversation.getId(), conversation.getTitle());
+                        return convertToConversationVO(conversation);
+                    })
                     .collect(Collectors.toList());
             
-            return Map.of(
+            log.info("转换后的VO数量: {}", conversationVOs.size());
+            
+            Map<String, Object> result = Map.of(
                 "conversations", conversationVOs,
                 "pagination", Map.of(
                     "currentPage", conversationPage.getCurrent(),
@@ -78,6 +104,9 @@ public class SpringAiChatMemoryAdapter {
                     "totalPages", conversationPage.getPages()
                 )
             );
+            
+            log.info("返回结果: {}", result);
+            return result;
             
         } catch (Exception e) {
             log.error("获取对话列表失败", e);
@@ -190,21 +219,22 @@ public class SpringAiChatMemoryAdapter {
     /**
      * 更新对话标题
      */
-    public void updateConversationTitle(String conversationId, Integer userId, String newTitle) {
+    public void updateConversationTitle(String conversationId, String title, Integer userId) {
         try {
-            // 验证对话是否属于当前用户
-            Conversation conversation = conversationMapper.selectById(conversationId);
+            QueryWrapper<Conversation> query = new QueryWrapper<>();
+            query.eq("conversation_id", conversationId);
+            query.eq("user_id", userId);
+            
+            Conversation conversation = conversationMapper.selectOne(query);
             if (conversation == null) {
-                throw new RuntimeException("对话不存在");
+                throw new RuntimeException("对话不存在或无权访问");
             }
             
-            if (!conversation.getUserId().equals(userId)) {
-                throw new RuntimeException("无权修改该对话");
-            }
-            
-            // 更新标题
-            conversation.setTitle(newTitle);
+            conversation.setTitle(title);
+            conversation.setUpdatedAt(LocalDateTime.now());
             conversationMapper.updateById(conversation);
+            
+            log.info("更新对话标题成功，对话ID：{}，新标题：{}", conversationId, title);
             
         } catch (Exception e) {
             log.error("更新对话标题失败", e);
@@ -250,23 +280,45 @@ public class SpringAiChatMemoryAdapter {
     
     // ============ 私有辅助方法 ============
     
-    private ConversationVO convertToConversationVO(Conversation conversation) {
-        // 获取最后一条消息
-        String lastMessage = getLastMessage(conversation.getId());
-        
-        return ConversationVO.builder()
-                .conversationId(conversation.getId())
-                .title(conversation.getTitle())
-                .scenario(conversation.getScenario())
-                .contextInfo(conversation.getContextInfo())
-                .totalMessages(conversation.getTotalMessages())
-                .lastMessage(lastMessage)
-                .createdAt(conversation.getCreatedAt())
-                .updatedAt(conversation.getUpdatedAt())
-                .build();
+    public ConversationVO convertToConversationVO(Conversation conversation) {
+        try {
+            log.debug("转换对话VO: conversationId={}", conversation.getId());
+            
+            // 获取最后一条消息
+            String lastMessage = getLastMessageContent(conversation.getId());
+            log.debug("最后一条消息: {}", lastMessage);
+            
+            ConversationVO vo = ConversationVO.builder()
+                    .conversationId(conversation.getId())
+                    .title(conversation.getTitle())
+                    .scenario(conversation.getScenario())
+                    .contextInfo(conversation.getContextInfo())
+                    .totalMessages(conversation.getTotalMessages())
+                    .lastMessage(lastMessage)
+                    .createdAt(conversation.getCreatedAt())
+                    .updatedAt(conversation.getUpdatedAt())
+                    .build();
+                    
+            log.debug("转换完成的VO: {}", vo);
+            return vo;
+            
+        } catch (Exception e) {
+            log.error("转换ConversationVO失败: conversationId={}", conversation.getId(), e);
+            // 返回基本信息，避免整个列表失败
+            return ConversationVO.builder()
+                    .conversationId(conversation.getId())
+                    .title(conversation.getTitle())
+                    .scenario(conversation.getScenario())
+                    .contextInfo(conversation.getContextInfo())
+                    .totalMessages(conversation.getTotalMessages())
+                    .lastMessage("获取消息失败")
+                    .createdAt(conversation.getCreatedAt())
+                    .updatedAt(conversation.getUpdatedAt())
+                    .build();
+        }
     }
     
-    private String getLastMessage(String conversationId) {
+    private String getLastMessageContent(String conversationId) {
         try {
             ChatMemory chatMemory = MessageWindowChatMemory.builder()
                     .chatMemoryRepository(chatMemoryRepository)

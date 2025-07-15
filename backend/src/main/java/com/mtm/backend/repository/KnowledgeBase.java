@@ -3,14 +3,21 @@ package com.mtm.backend.repository;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.Date;
 
 /**
- * 知识库实体类
+ * 知识库实体
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @TableName("knowledge_base")
 public class KnowledgeBase {
     
@@ -23,12 +30,12 @@ public class KnowledgeBase {
     private String name;
     
     /**
-     * 知识库描述
+     * 描述
      */
     private String description;
     
     /**
-     * 学科领域
+     * 学科
      */
     private String subject;
     
@@ -38,7 +45,7 @@ public class KnowledgeBase {
     private String courseLevel;
     
     /**
-     * 资源ID列表（JSON格式存储）
+     * 资源ID列表（JSON格式）
      */
     private String resourceIds;
     
@@ -73,9 +80,14 @@ public class KnowledgeBase {
     private Integer resourceCount;
     
     /**
-     * 分块数量
+     * 文档块数量
      */
     private Integer chunkCount;
+    
+    /**
+     * 文档数量（兼容字段）
+     */
+    private Integer documentCount;
     
     /**
      * 状态消息

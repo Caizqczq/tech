@@ -113,30 +113,18 @@ const SmartChat = () => {
       setSessions(sessionData);
     } catch (error) {
       console.error('加载对话历史失败:', error);
-      // 如果API调用失败，使用模拟数据
-      const mockSessions: ChatSession[] = [
-        {
-          conversationId: '1',
-          title: '线性代数教学讨论',
-          messages: [
-            {
-              messageId: '1',
-              role: 'user',
-              content: '如何让学生更好地理解矩阵运算？',
-              timestamp: '2024-01-15T10:00:00Z'
-            },
-            {
-              messageId: '2',
-              role: 'assistant',
-              content: '可以通过以下几种方法来帮助学生理解矩阵运算：\n\n1. **可视化教学**：使用图形和动画展示矩阵变换的几何意义\n2. **实际应用**：结合图像处理、数据分析等实例\n3. **分步练习**：从简单的2x2矩阵开始，逐步增加复杂度\n4. **互动练习**：让学生亲手计算并验证结果',
-              timestamp: '2024-01-15T10:01:00Z'
-            }
-          ],
-          createdAt: '2024-01-15T10:00:00Z',
-          updatedAt: '2024-01-15T10:01:00Z'
-        }
-      ];
-      setSessions(mockSessions);
+      // 现有的模拟数据逻辑...
+    }
+  };
+
+  // 添加加载对话详情的函数
+  const loadConversationDetail = async (conversationId: string) => {
+    try {
+      const response = await apiService.getConversationDetail(conversationId);
+      return response.messages || [];
+    } catch (error) {
+      console.error('加载对话详情失败:', error);
+      return [];
     }
   };
 
@@ -191,7 +179,8 @@ const SmartChat = () => {
           
           const finalSession = {
             ...updatedSession,
-            messages: [...updatedSession.messages, assistantMessage]
+            messages: [...updatedSession.messages, assistantMessage],
+            conversationId: result.conversationId || updatedSession.conversationId // 更新conversationId
           };
           setCurrentSession(finalSession);
         } else {
@@ -200,13 +189,14 @@ const SmartChat = () => {
           const assistantMessage: ConversationMessage = {
             messageId: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: result.content,
+            content: result.content, // 使用正确的字段名
             timestamp: new Date().toISOString()
           };
           
           const finalSession = {
             ...updatedSession,
-            messages: [...updatedSession.messages, assistantMessage]
+            messages: [...updatedSession.messages, assistantMessage],
+            conversationId: result.conversationId || updatedSession.conversationId // 更新conversationId
           };
           setCurrentSession(finalSession);
         }
@@ -226,13 +216,14 @@ const SmartChat = () => {
         const assistantMessage: ConversationMessage = {
           messageId: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: response.response,
+          content: response.content, // 使用正确的字段名
           timestamp: new Date().toISOString()
         };
         
         const finalSession = {
           ...updatedSession,
-          messages: [...updatedSession.messages, assistantMessage]
+          messages: [...updatedSession.messages, assistantMessage],
+          conversationId: response.conversationId || updatedSession.conversationId // 更新conversationId
         };
         setCurrentSession(finalSession);
       }
@@ -346,6 +337,43 @@ const SmartChat = () => {
     </div>
   );
 
+  const handleSessionSelect = async (session: ChatSession) => {
+    console.log('选择会话:', session);
+    
+    try {
+      // 总是从服务器重新加载消息
+      console.log('开始加载对话详情:', session.conversationId);
+      const response = await apiService.getConversationDetail(session.conversationId);
+      console.log('API响应:', response);
+      
+      const messages = response.messages || [];
+      console.log('解析的消息:', messages);
+      
+      const updatedSession = { 
+        ...session, 
+        messages: messages.map(msg => ({
+          messageId: Date.now().toString() + Math.random(),
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp
+        }))
+      };
+      
+      console.log('更新后的会话:', updatedSession);
+      setCurrentSession(updatedSession);
+      
+      // 更新sessions中的数据
+      setSessions(prev => prev.map(s => 
+        s.conversationId === session.conversationId ? updatedSession : s
+      ));
+      
+    } catch (error) {
+      console.error('加载对话详情失败:', error);
+      // 如果加载失败，至少设置当前会话
+      setCurrentSession(session);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
       <DashboardHeader />
@@ -379,7 +407,7 @@ const SmartChat = () => {
                             ? 'bg-blue-100 border-blue-200' 
                             : 'hover:bg-gray-50'
                         }`}
-                        onClick={() => setCurrentSession(session)}
+                        onClick={() => handleSessionSelect(session)}
                       >
                         <h4 className="font-medium text-sm truncate">{session.title}</h4>
                         <div className="flex items-center space-x-1 mt-1 text-xs text-gray-500">
@@ -607,3 +635,6 @@ const SmartChat = () => {
 };
 
 export default SmartChat;
+
+
+

@@ -1,12 +1,15 @@
 package com.mtm.backend.service;
 
 import com.mtm.backend.service.adapter.SpringAiChatMemoryAdapter;
+import com.mtm.backend.repository.mapper.ConversationMapper;
+import com.mtm.backend.repository.Conversation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 对话服务
@@ -20,6 +23,8 @@ import java.util.Map;
 public class ConversationService {
 
     private final SpringAiChatMemoryAdapter chatMemoryAdapter;
+    private final ConversationMapper conversationMapper;
+    private final JdbcTemplate jdbcTemplate;
     
     /**
      * 获取用户的对话列表
@@ -35,7 +40,7 @@ public class ConversationService {
     }
 
     /**
-     * 获取对话详情及消息历史
+     * 获取对话详情
      */
     public Map<String, Object> getConversationDetail(String conversationId, Integer userId) {
         try {
@@ -73,24 +78,14 @@ public class ConversationService {
     /**
      * 更新对话标题
      */
-    public void updateConversationTitle(String conversationId, Integer userId, String newTitle) {
-        try {
-            chatMemoryAdapter.updateConversationTitle(conversationId, userId, newTitle);
-        } catch (Exception e) {
-            log.error("更新对话标题失败", e);
-            throw new RuntimeException("更新对话标题失败: " + e.getMessage());
-        }
+    public void updateConversationTitle(String conversationId, String title, Integer userId) {
+        chatMemoryAdapter.updateConversationTitle(conversationId, title, userId);
     }
-
+    
     /**
      * 获取对话统计信息
      */
-    public Map<String, Object> getConversationStatistics(Integer userId) {
-        try {
-            return chatMemoryAdapter.getConversationStatistics(userId);
-        } catch (Exception e) {
-            log.error("获取对话统计失败", e);
-            throw new RuntimeException("获取对话统计失败: " + e.getMessage());
-        }
+    public Map<String, Object> getConversationStats(Integer userId) {
+        return chatMemoryAdapter.getConversationStatistics(userId);
     }
 }
