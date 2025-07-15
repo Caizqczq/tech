@@ -145,3 +145,8 @@ create table knowledge_base_resources(
                                         index idx_knowledge_base_id (knowledge_base_id),
                                         index idx_resource_id (resource_id)
 ) default charset = utf8mb4 comment = "知识库资源关联表";
+
+ALTER TABLE teaching_resources
+    ADD COLUMN file_path VARCHAR(500) COMMENT '文件存储路径';
+
+alter table teaching_resources drop column oss_key;

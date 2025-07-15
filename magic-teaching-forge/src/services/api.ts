@@ -4,11 +4,29 @@ import { ApiResponse, User, LoginRequest, RegisterRequest, ConversationMessage, 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8082/api';
 
 class ApiService {
+  private getToken(): string | null {
+    return localStorage.getItem('token'); // 确保使用正确的key
+  }
+
+  private getHeaders(): Record<string, string> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = localStorage.getItem('token'); // 改为 'token'
+    const token = this.getToken();
     
     const config: RequestInit = {
       headers: {
@@ -24,12 +42,31 @@ class ApiService {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'API request failed');
+        // 处理401错误
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          throw new Error('登录已过期，请重新登录');
+        }
+        
+        // 尝试解析错误响应
+        let errorMessage = 'API request failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
-      const data = await response.json();
-      return data;
+      // 检查响应是否为空
+      const text = await response.text();
+      if (!text) {
+        return {} as T;
+      }
+      
+      return JSON.parse(text);
     } catch (error) {
       console.error('API Error:', error);
       throw error;
@@ -322,34 +359,78 @@ class ApiService {
   }
 
   // 智能教学资源管理相关
-  async uploadDocument(file: File, category: string = 'document', description?: string): Promise<{
-    resourceId: string;
-    fileName: string;
-    fileSize: number;
-    category: string;
+  async uploadDocument(file: File, params: {
+    subject: string;
+    courseLevel: string;
+    resourceType: string;
+    title?: string;
     description?: string;
-    extractedContent: string;
-    metadata: {
-      pageCount?: number;
-      wordCount?: number;
-      language?: string;
-      keywords?: string[];
-    };
-    uploadTime: string;
-  }> {
+    keywords?: string;
+    autoVectorize?: boolean;
+    autoExtractKeywords?: boolean;
+  }) {
+    const token = this.getToken();
+    if (!token) {
+      throw new Error('请先登录');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('category', category);
-    if (description) formData.append('description', description);
+    formData.append('subject', params.subject);
+    formData.append('courseLevel', params.courseLevel);
+    formData.append('resourceType', params.resourceType);
     
-    return this.request('/resources/upload/document', {
-      method: 'POST',
-      body: formData,
-      headers: {}, // 让浏览器自动设置Content-Type
-    });
+    if (params.title) formData.append('title', params.title);
+    if (params.description) formData.append('description', params.description);
+    if (params.keywords) formData.append('keywords', params.keywords);
+    formData.append('autoVectorize', String(params.autoVectorize ?? true));
+    formData.append('autoExtractKeywords', String(params.autoExtractKeywords ?? true));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/resources/upload/document`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // 不要设置Content-Type，让浏览器自动设置multipart/form-data
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          window.location.href = '/login';
+          throw new Error('登录已过期，请重新登录');
+        }
+        
+        let errorMessage = 'Upload failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : {};
+    } catch (error) {
+      console.error('Upload Error:', error);
+      throw error;
+    }
   }
 
-  async uploadAudio(file: File, transcriptionMode: string = 'auto', language: string = 'zh-CN'): Promise<{
+  async uploadAudio(file: File, params: {
+    transcriptionMode?: string;
+    needTranscription?: boolean;
+    subject?: string;
+    resourceType?: string;
+    description?: string;
+    speaker?: string;
+    language?: string;
+    autoVectorize?: boolean;
+  }): Promise<{
     resourceId: string;
     fileName: string;
     fileSize: number;
@@ -361,9 +442,16 @@ class ApiService {
   }> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('transcriptionMode', transcriptionMode);
-    formData.append('language', language);
+    formData.append('transcriptionMode', params.transcriptionMode || 'sync');
+    formData.append('needTranscription', String(params.needTranscription ?? true));
     
+    if (params.subject) formData.append('subject', params.subject);
+    if (params.resourceType) formData.append('resourceType', params.resourceType);
+    if (params.description) formData.append('description', params.description);
+    if (params.speaker) formData.append('speaker', params.speaker);
+    formData.append('language', params.language || 'zh');
+    formData.append('autoVectorize', String(params.autoVectorize ?? true));
+
     return this.request('/resources/upload/audio', {
       method: 'POST',
       body: formData,
@@ -371,7 +459,11 @@ class ApiService {
     });
   }
 
-  async uploadBatchResources(files: File[], category: string = 'document'): Promise<{
+  async uploadBatchResources(files: File[], params: {
+    subject: string;
+    courseLevel: string;
+    autoVectorize?: boolean;
+  }): Promise<{
     successCount: number;
     failureCount: number;
     results: {
@@ -384,8 +476,10 @@ class ApiService {
   }> {
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
-    formData.append('category', category);
-    
+    formData.append('subject', params.subject);
+    formData.append('courseLevel', params.courseLevel);
+    formData.append('autoVectorize', String(params.autoVectorize ?? true));
+
     return this.request('/resources/upload/batch', {
       method: 'POST',
       body: formData,

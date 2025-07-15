@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiService } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ import {
   MessageSquare,
   Share2
 } from 'lucide-react';
+import { UploadDialog } from './UploadDialog';
 
 interface ResourceItem {
   id: string;
@@ -67,6 +69,108 @@ const ResourceCenter: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('resources');
+  const [resources, setResources] = useState<ResourceItem[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0
+  });
+
+  // 获取资源列表
+  const fetchResources = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: pagination.page,
+        size: pagination.size,
+        resourceType: selectedCategory === 'all' ? undefined : selectedCategory,
+        keywords: searchQuery || undefined
+      };
+      
+      const response = await apiService.getResources(params);
+      
+      // 确保响应数据的安全处理
+      setResources(response?.content || []);
+      setPagination({
+        page: response?.number || 0,
+        size: response?.size || 20,
+        totalElements: response?.totalElements || 0,
+        totalPages: response?.totalPages || 0
+      });
+    } catch (error) {
+      console.error('获取资源失败:', error);
+      // 设置空数组而不是保持 undefined
+      setResources([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 获取知识库列表
+  const fetchKnowledgeBases = async () => {
+    try {
+      const response = await apiService.getKnowledgeBases();
+      setKnowledgeBases(response || []);
+    } catch (error) {
+      console.error('获取知识库失败:', error);
+    }
+  };
+
+  // 语义搜索
+  const handleSemanticSearch = async (query: string) => {
+    if (!query.trim()) return;
+    
+    setLoading(true);
+    try {
+      const response = await apiService.searchResourcesSemantic({
+        query,
+        topK: 10,
+        threshold: 0.7
+      });
+      setResources(response || []);
+    } catch (error) {
+      console.error('语义搜索失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 创建知识库
+  const handleCreateKnowledgeBase = async (name: string, description: string, resourceIds: string[]) => {
+    try {
+      await apiService.createKnowledgeBase({
+        name,
+        description,
+        resourceIds
+      });
+      await fetchKnowledgeBases(); // 刷新知识库列表
+    } catch (error) {
+      console.error('创建知识库失败:', error);
+    }
+  };
+
+  // 下载资源
+  const handleDownloadResource = async (resourceId: string) => {
+    try {
+      const response = await apiService.getResourceDownloadUrl(resourceId);
+      window.open(response.downloadUrl, '_blank');
+    } catch (error) {
+      console.error('下载资源失败:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchResources();
+  }, [selectedCategory, searchQuery, pagination.page]);
+
+  useEffect(() => {
+    if (activeTab === 'knowledge') {
+      fetchKnowledgeBases();
+    }
+  }, [activeTab]);
 
   const resourceCategories = [
     { id: 'all', label: '全部资源', icon: Database, count: 156, color: 'from-blue-500 to-purple-600' },
@@ -351,6 +455,11 @@ const ResourceCenter: React.FC = () => {
                     placeholder="搜索资源标题、标签..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSemanticSearch(searchQuery);
+                      }
+                    }}
                     className="pl-12 pr-4 py-3 bg-white/80 dark:bg-gray-700/80 border-white/30 dark:border-gray-600/30 rounded-xl"
                   />
                 </div>
@@ -371,9 +480,13 @@ const ResourceCenter: React.FC = () => {
                   >
                     <List className="h-4 w-4" />
                   </Button>
-                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl">
-                    <Upload className="h-4 w-4 mr-2" />
-                    上传资源
+                  <UploadDialog onUploadSuccess={fetchResources} />
+                  <Button 
+                    onClick={() => handleSemanticSearch(searchQuery)}
+                    className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl"
+                  >
+                    <Brain className="h-4 w-4 mr-2" />
+                    智能搜索
                   </Button>
                 </div>
               </div>
@@ -381,8 +494,13 @@ const ResourceCenter: React.FC = () => {
           </Card>
 
           {/* Resources List */}
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
-            {filteredResources.map((resource) => {
+            {resources.map((resource) => {
               const TypeIcon = getTypeIcon(resource.type);
               const typeColor = getTypeColor(resource.type);
               
@@ -413,14 +531,14 @@ const ResourceCenter: React.FC = () => {
                   <CardContent className="pt-0">
                     <div className="space-y-4">
                       <div className="flex flex-wrap gap-1">
-                        {resource.tags.slice(0, 3).map((tag) => (
+                        {(resource.tags || []).slice(0, 3).map((tag) => (
                           <Badge key={tag} variant="secondary" className="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 border-indigo-200">
                             {tag}
                           </Badge>
                         ))}
-                        {resource.tags.length > 3 && (
+                        {(resource.tags || []).length > 3 && (
                           <Badge variant="secondary" className="text-xs px-2 py-1 bg-gray-100 text-gray-600">
-                            +{resource.tags.length - 3}
+                            +{(resource.tags || []).length - 3}
                           </Badge>
                         )}
                       </div>
@@ -446,8 +564,14 @@ const ResourceCenter: React.FC = () => {
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/20">
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-900/20">
-                            <Download className="h-4 w-4" />
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleDownloadResource(resource.id)}
+                            className="rounded-xl"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            下载
                           </Button>
                           <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/20">
                             <Share2 className="h-4 w-4" />
@@ -460,6 +584,29 @@ const ResourceCenter: React.FC = () => {
               );
             })}
           </div>
+          {pagination.totalPages > 1 && (
+            <div className="flex justify-center items-center space-x-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.page === 0}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+              >
+                上一页
+              </Button>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                第 {pagination.page + 1} 页，共 {pagination.totalPages} 页
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pagination.page >= pagination.totalPages - 1}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              >
+                下一页
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="knowledge" className="space-y-6">
@@ -570,3 +717,13 @@ const ResourceCenter: React.FC = () => {
 };
 
 export default ResourceCenter;
+
+
+
+
+
+
+
+
+
+
