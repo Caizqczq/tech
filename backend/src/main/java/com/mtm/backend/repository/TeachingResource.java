@@ -20,7 +20,7 @@ public class TeachingResource {
     
     private String originalName;
     private String storedFilename;
-    private String ossKey;
+    private String filePath; // 重命名 ossKey 为 filePath，用于本地文件存储
     private String contentType;
     private Long fileSize;
     private String resourceType; // 改为resourceType以符合接口文档

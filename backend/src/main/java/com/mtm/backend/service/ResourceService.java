@@ -17,7 +17,7 @@ import com.mtm.backend.repository.TeachingResource;
 import com.mtm.backend.repository.TranscriptionTask;
 import com.mtm.backend.repository.mapper.TeachingResourceMapper;
 import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
-import com.mtm.backend.utils.OssUtil;
+import com.mtm.backend.utils.LocalFileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;
@@ -48,7 +48,7 @@ public class ResourceService {
     
     private final TeachingResourceMapper teachingResourceMapper;
     private final TranscriptionTaskMapper transcriptionTaskMapper;
-    private final OssUtil ossUtil;
+    private final LocalFileUtil localFileUtil;
     private final AudioTranscriptionModel audioTranscriptionModel;
     private final VectorStore vectorStore;
     
@@ -58,16 +58,16 @@ public class ResourceService {
     public ResourceUploadVO uploadDocument(MultipartFile file, DocumentUploadDTO uploadDTO, Integer userId) throws IOException {
         String resourceId = generateResourceId();
         
-        // 上传到OSS
+        // 上传到本地存储
         String folder = String.format("documents/%d/%s", userId, uploadDTO.getResourceType());
-        String ossKey = ossUtil.uploadFile(file, folder);
+        String filePath = localFileUtil.uploadFile(file, folder);
         
         // 保存到数据库
         TeachingResource resource = new TeachingResource();
         resource.setId(resourceId);
         resource.setOriginalName(file.getOriginalFilename());
-        resource.setStoredFilename(extractFilenameFromOssKey(ossKey));
-        resource.setOssKey(ossKey);
+        resource.setStoredFilename(extractFilenameFromFilePath(filePath));
+        resource.setFilePath(filePath);
         resource.setContentType(file.getContentType());
         resource.setFileSize(file.getSize());
         resource.setResourceType("document");
@@ -105,7 +105,7 @@ public class ResourceService {
         result.setKeywords(resource.getKeywords() != null ? Arrays.asList(resource.getKeywords().split(",")) : new ArrayList<>());
         result.setExtractedKeywords(extractedKeywords);
         result.setUploadedAt(resource.getCreatedAt());
-        result.setDownloadUrl(ossUtil.generateUrl(ossKey));
+        result.setDownloadUrl(localFileUtil.generateUrl(filePath));
         result.setIsVectorized(resource.getIsVectorized());
         result.setProcessingStatus(resource.getProcessingStatus());
         
@@ -118,16 +118,16 @@ public class ResourceService {
     public Object uploadAudio(MultipartFile file, AudioUploadDTO uploadDTO, Integer userId) throws IOException {
         String resourceId = generateResourceId();
         
-        // 上传到OSS
+        // 上传到本地存储
         String folder = String.format("audio/%d/%s", userId, uploadDTO.getResourceType() != null ? uploadDTO.getResourceType() : "general");
-        String ossKey = ossUtil.uploadFile(file, folder);
+        String filePath = localFileUtil.uploadFile(file, folder);
         
         // 保存基本信息到数据库
         TeachingResource resource = new TeachingResource();
         resource.setId(resourceId);
         resource.setOriginalName(file.getOriginalFilename());
-        resource.setStoredFilename(extractFilenameFromOssKey(ossKey));
-        resource.setOssKey(ossKey);
+        resource.setStoredFilename(extractFilenameFromFilePath(filePath));
+        resource.setFilePath(filePath);
         resource.setContentType(file.getContentType());
         resource.setFileSize(file.getSize());
         resource.setResourceType("audio");
@@ -421,11 +421,11 @@ public class ResourceService {
                 throw new RuntimeException("无权删除该资源");
             }
             
-            // 删除OSS文件
+            // 删除本地文件
             try {
-                ossUtil.deleteFile(resource.getOssKey());
+                localFileUtil.deleteFile(resource.getFilePath());
             } catch (Exception e) {
-                log.warn("删除OSS文件失败: {}", e.getMessage());
+                log.warn("删除本地文件失败: {}", e.getMessage());
             }
             
             // 删除数据库记录
@@ -461,7 +461,7 @@ public class ResourceService {
             }
             
             // 生成下载链接
-            return ossUtil.generateUrl(resource.getOssKey());
+            return localFileUtil.generateUrl(resource.getFilePath());
             
         } catch (Exception e) {
             log.error("获取下载链接失败", e);
@@ -528,9 +528,9 @@ public class ResourceService {
             // 等待一秒确保文件上传完成
             Thread.sleep(1000);
             
-            // 检查OSS文件是否存在
-            if (!ossUtil.doesObjectExist(resource.getOssKey())) {
-                throw new RuntimeException("OSS文件不存在: " + resource.getOssKey());
+            // 检查本地文件是否存在
+            if (!localFileUtil.doesFileExist(resource.getFilePath())) {
+                throw new RuntimeException("本地文件不存在: " + resource.getFilePath());
             }
             
             // 直接使用文件字节数组，避免文件系统问题
@@ -619,7 +619,7 @@ public class ResourceService {
         result.setSize(resource.getFileSize());
         result.setLanguage(resource.getLanguage());
         result.setUploadedAt(resource.getCreatedAt());
-        result.setDownloadUrl(ossUtil.generateUrl(resource.getOssKey()));
+        result.setDownloadUrl(localFileUtil.generateUrl(resource.getFilePath()));
         result.setTranscription(transcriptionText);
         result.setIsVectorized(resource.getIsVectorized());
         result.setProcessingStatus(resource.getProcessingStatus());
@@ -639,8 +639,13 @@ public class ResourceService {
         return "batch_" + UUID.randomUUID().toString().replace("-", "");
     }
     
-    private String extractFilenameFromOssKey(String ossKey) {
-        return ossKey.substring(ossKey.lastIndexOf("/") + 1);
+    // 删除不再使用的方法，已被extractFilenameFromFilePath替代
+    // private String extractFilenameFromOssKey(String ossKey) {
+    //     return ossKey.substring(ossKey.lastIndexOf("/") + 1);
+    // }
+    
+    private String extractFilenameFromFilePath(String filePath) {
+        return filePath.substring(filePath.lastIndexOf("/") + 1);
     }
     
     private ResourceListVO convertToResourceListVO(TeachingResource resource) {
@@ -669,7 +674,7 @@ public class ResourceService {
                 .fileSize(resource.getFileSize())
                 .contentType(resource.getContentType())
                 .keywords(resource.getKeywords() != null ? Arrays.asList(resource.getKeywords().split(",")) : new ArrayList<>())
-                .downloadUrl(ossUtil.generateUrl(resource.getOssKey()))
+                .downloadUrl(localFileUtil.generateUrl(resource.getFilePath()))
                 .transcriptionText(resource.getTranscriptionText())
                 .isVectorized(resource.getIsVectorized())
                 .createdAt(resource.getCreatedAt())

@@ -226,7 +226,7 @@ public class KnowledgeBaseService {
     }
     
     private List<Document> processResource(TeachingResource resource, TokenTextSplitter textSplitter, String knowledgeBaseId) throws Exception {
-        String downloadUrl = ossUtil.generateUrl(resource.getOssKey());
+        String downloadUrl = ossUtil.generateUrl(resource.getFilePath());
         
         List<Document> documents = new ArrayList<>();
         

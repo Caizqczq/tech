@@ -17,7 +17,7 @@ create table teaching_resources(
                                    id varchar(50) primary key comment '资源ID',
                                    original_name varchar(255) not null comment '原始文件名',
                                    stored_filename varchar(255) not null comment '存储文件名',
-                                   oss_key varchar(500) not null comment 'OSS对象key',
+                                   file_path varchar(500) not null comment '本地文件路径',
                                    content_type varchar(100) not null comment '文件MIME类型',
                                    file_size bigint not null comment '文件大小(字节)',
                                    resource_type enum('document', 'audio') not null comment '资源类型',

@@ -38,6 +38,19 @@ aliyun:
     endpoint: ${ALIYUN_OSS_ENDPOINT:oss-cn-beijing.aliyuncs.com}
     custom-domain: ${ALIYUN_OSS_CUSTOM_DOMAIN:}
 
+# 本地文件存储配置
+local:
+  file:
+    storage:
+      base-path: ${LOCAL_FILE_STORAGE_PATH:./uploads}
+      base-url: ${LOCAL_FILE_STORAGE_URL:http://localhost:8082/files}
+      max-file-size:
+        document: 50
+        audio: 100
+      allowed-types:
+        document: ["pdf", "doc", "docx", "ppt", "pptx", "txt", "md"]
+        audio: ["mp3", "wav", "m4a", "flac"]
+
 logging:
   level:
     org.springframework.ai: debug
