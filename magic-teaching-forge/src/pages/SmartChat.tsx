@@ -31,7 +31,7 @@ import {
 import { apiService } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import DashboardHeader from '@/components/dashboard/DashboardHeader';
-import { ChatMessage, ChatConversation } from '@/types/api';
+import { ConversationMessage, ConversationDetail, ConversationItem } from '@/types/api';
 
 interface QuickQuestion {
   id: string;
@@ -41,9 +41,9 @@ interface QuickQuestion {
 }
 
 interface ChatSession {
-  id: string;
+  conversationId: string;
   title: string;
-  messages: ChatMessage[];
+  messages: ConversationMessage[];
   createdAt: string;
   updatedAt: string;
 }
@@ -102,20 +102,31 @@ const SmartChat = () => {
 
   const loadChatSessions = async () => {
     try {
-      // 模拟数据，实际应该调用API
+      const response = await apiService.getConversations(1, 20);
+      const sessionData: ChatSession[] = response.conversations.map(conv => ({
+        conversationId: conv.conversationId,
+        title: conv.title,
+        messages: [], // 消息将在选择会话时加载
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt
+      }));
+      setSessions(sessionData);
+    } catch (error) {
+      console.error('加载对话历史失败:', error);
+      // 如果API调用失败，使用模拟数据
       const mockSessions: ChatSession[] = [
         {
-          id: '1',
+          conversationId: '1',
           title: '线性代数教学讨论',
           messages: [
             {
-              id: '1',
+              messageId: '1',
               role: 'user',
               content: '如何让学生更好地理解矩阵运算？',
               timestamp: '2024-01-15T10:00:00Z'
             },
             {
-              id: '2',
+              messageId: '2',
               role: 'assistant',
               content: '可以通过以下几种方法来帮助学生理解矩阵运算：\n\n1. **可视化教学**：使用图形和动画展示矩阵变换的几何意义\n2. **实际应用**：结合图像处理、数据分析等实例\n3. **分步练习**：从简单的2x2矩阵开始，逐步增加复杂度\n4. **互动练习**：让学生亲手计算并验证结果',
               timestamp: '2024-01-15T10:01:00Z'
@@ -126,14 +137,12 @@ const SmartChat = () => {
         }
       ];
       setSessions(mockSessions);
-    } catch (error) {
-      console.error('加载对话历史失败:', error);
     }
   };
 
   const createNewSession = () => {
     const newSession: ChatSession = {
-      id: Date.now().toString(),
+      conversationId: Date.now().toString(),
       title: '新对话',
       messages: [],
       createdAt: new Date().toISOString(),
@@ -146,12 +155,11 @@ const SmartChat = () => {
     if (!message.trim() && !selectedImage) return;
     if (isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
+    const userMessage: ConversationMessage = {
+      messageId: Date.now().toString(),
       role: 'user',
       content: message,
-      timestamp: new Date().toISOString(),
-      imageUrl: selectedImage ? URL.createObjectURL(selectedImage) : undefined
+      timestamp: new Date().toISOString()
     };
 
     // 更新当前会话
@@ -162,6 +170,7 @@ const SmartChat = () => {
     };
     setCurrentSession(updatedSession);
 
+    const currentMessage = message;
     setMessage('');
     setSelectedImage(null);
     setIsLoading(true);
@@ -172,11 +181,11 @@ const SmartChat = () => {
         // 简单聊天模式
         if (selectedImage) {
           // 图片分析
-          const result = await apiService.analyzeImageByUpload(selectedImage, message || '分析这张图片');
-          const assistantMessage: ChatMessage = {
-            id: (Date.now() + 1).toString(),
+          const result = await apiService.analyzeImageByUpload(selectedImage, currentMessage || '分析这张图片');
+          const assistantMessage: ConversationMessage = {
+            messageId: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: result.data || '图片分析完成',
+            content: result.content,
             timestamp: new Date().toISOString()
           };
           
@@ -186,22 +195,12 @@ const SmartChat = () => {
           };
           setCurrentSession(finalSession);
         } else {
-          // 流式聊天
-          const response = await apiService.streamChat(message, currentSession?.id);
-          
-          // 模拟流式响应
-          const fullResponse = "这是一个很好的问题！让我来详细解答：\n\n基于您的问题，我建议从以下几个方面来考虑：\n\n1. **理论基础**：首先要确保学生掌握基本概念\n2. **实践应用**：通过具体例子帮助理解\n3. **循序渐进**：按照学习规律安排教学内容\n\n希望这些建议对您有帮助！";
-          
-          // 模拟打字效果
-          for (let i = 0; i <= fullResponse.length; i++) {
-            setStreamingMessage(fullResponse.slice(0, i));
-            await new Promise(resolve => setTimeout(resolve, 20));
-          }
-          
-          const assistantMessage: ChatMessage = {
-            id: (Date.now() + 1).toString(),
+          // 简单聊天
+          const result = await apiService.simpleChat(currentMessage, currentSession?.conversationId);
+          const assistantMessage: ConversationMessage = {
+            messageId: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: fullResponse,
+            content: result.content,
             timestamp: new Date().toISOString()
           };
           
@@ -210,21 +209,24 @@ const SmartChat = () => {
             messages: [...updatedSession.messages, assistantMessage]
           };
           setCurrentSession(finalSession);
-          setStreamingMessage('');
         }
       } else {
         // 教学助手模式
-        const response = await apiService.getTeachingAdvice({
-          query: message,
-          subject: '数学',
-          courseLevel: '大学',
-          currentContext: '课堂教学'
+        const response = await apiService.chatWithAssistant({
+          message: currentMessage,
+          conversationId: currentSession?.conversationId,
+          mode: 'teaching',
+          context: {
+            subject: '数学',
+            grade: '大学',
+            topic: '教学咨询'
+          }
         });
         
-        const assistantMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
+        const assistantMessage: ConversationMessage = {
+          messageId: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: response.data || '教学建议已生成',
+          content: response.response,
           timestamp: new Date().toISOString()
         };
         
@@ -300,7 +302,7 @@ const SmartChat = () => {
     });
   };
 
-  const MessageBubble = ({ message }: { message: ChatMessage }) => (
+  const MessageBubble = ({ message }: { message: ConversationMessage }) => (
     <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className={`flex items-start space-x-2 max-w-[80%] ${
         message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
@@ -318,13 +320,6 @@ const SmartChat = () => {
             ? 'bg-blue-600 text-white'
             : 'bg-gray-100 text-gray-900'
         }`}>
-          {message.imageUrl && (
-            <img 
-              src={message.imageUrl} 
-              alt="上传的图片" 
-              className="max-w-xs rounded-lg mb-2"
-            />
-          )}
           <div className="whitespace-pre-wrap">{message.content}</div>
           
           {message.role === 'assistant' && (
@@ -378,9 +373,9 @@ const SmartChat = () => {
                   <div className="space-y-2">
                     {sessions.map((session) => (
                       <div 
-                        key={session.id}
+                        key={session.conversationId}
                         className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                          currentSession?.id === session.id 
+                          currentSession?.conversationId === session.conversationId 
                             ? 'bg-blue-100 border-blue-200' 
                             : 'hover:bg-gray-50'
                         }`}
@@ -471,7 +466,7 @@ const SmartChat = () => {
                   ) : (
                     <div>
                       {currentSession?.messages.map((msg) => (
-                        <MessageBubble key={msg.id} message={msg} />
+                        <MessageBubble key={msg.messageId} message={msg} />
                       ))}
                       
                       {/* 流式消息 */}

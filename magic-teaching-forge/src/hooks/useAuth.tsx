@@ -30,10 +30,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const getCurrentUser = async () => {
     try {
-      const response = await apiService.getCurrentUser();
-      if (response.success) {
-        setUser(response.data);
-      }
+      const user = await apiService.getCurrentUser();
+      setUser(user);
     } catch (error) {
       console.error('获取用户信息失败:', error);
       localStorage.removeItem('auth_token');
@@ -45,16 +43,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await apiService.login({ email, password });
-      if (response.success) {
-        localStorage.setItem('auth_token', response.data.token);
-        setUser(response.data.user);
-        toast({
-          title: "登录成功",
-          description: `欢迎回来，${response.data.user.username}!`,
-        });
-        return true;
-      }
-      return false;
+      localStorage.setItem('auth_token', response.token);
+      setUser(response.user);
+      toast({
+        title: "登录成功",
+        description: `欢迎回来，${response.user.username}!`,
+      });
+      return true;
     } catch (error: any) {
       toast({
         title: "登录失败",
@@ -67,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const register = async (username: string, email: string, password: string, role: 'teacher' | 'admin' = 'teacher', subject?: string, institution?: string): Promise<boolean> => {
     try {
-      const response = await apiService.register({ 
+      const user = await apiService.register({ 
         username, 
         email, 
         password, 
@@ -75,12 +70,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         subject, 
         institution 
       });
-      if (response.success) {
-        localStorage.setItem('auth_token', response.data.token);
-        setUser(response.data.user);
+      // 注册成功后需要重新登录获取token
+      const loginSuccess = await login(email, password);
+      if (loginSuccess) {
         toast({
           title: "注册成功",
-          description: `欢迎加入，${response.data.user.username}!`,
+          description: `欢迎加入，${user.username}!`,
         });
         return true;
       }

@@ -1,24 +1,21 @@
 
-// API响应类型定义
+// API响应类型定义 - 根据接口文档标准格式
 export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
+  data?: T;
   message?: string;
-  code?: number;
+  timestamp?: string;
+  status?: number;
+  error?: string;
+  path?: string;
 }
 
 // 用户相关类型
 export interface User {
-  id: string;
+  id: number;
   username: string;
   email: string;
   avatar?: string;
-  role: 'teacher' | 'admin';
-  subject?: string;
-  institution?: string;
-  verified: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
 }
 
 export interface LoginRequest {
@@ -127,28 +124,7 @@ export interface KnowledgeItem {
   createdAt: string;
 }
 
-// AI对话类型
-export interface ChatMessage {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-  timestamp: string;
-  conversationId?: string;
-  imageUrl?: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-}
 
-export interface ChatConversation {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 // AI生成任务类型
 export interface AIGenerationTask {
@@ -205,56 +181,81 @@ export interface ResourceCategory {
   resourceCount: number;
 }
 
-// 图片分析结果类型
-export interface ImageAnalysisResult {
-  content: string;
-  imageUrl?: string;
-  fileName?: string;
-  fileSize?: number;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
-  responseTime: string;
-}
-
-// 教学建议响应类型
-export interface TeachingAdviceResponse {
-  response: string;
-  suggestions: string[];
-  timestamp: string;
-}
-
-// 内容分析响应类型
-export interface ContentAnalysisResponse {
-  contentSummary: string;
-  keyPoints: string[];
-  difficultyLevel: string;
-  suggestedTeachingTime: string;
-  prerequisites: string[];
-  teachingSuggestions: string[];
-  timestamp: string;
-}
-
-// 写作辅助响应类型
-export interface WritingAssistanceResponse {
-  improvedContent: string;
-  improvements: Array<{
-    area: string;
-    suggestion: string;
-  }>;
-  additionalSuggestions: string[];
-  timestamp: string;
-}
-
-// 智能助手响应类型
-export interface AssistantResponse {
-  response: string;
-  conversationId: string;
+// 对话消息
+export interface ConversationMessage {
   messageId: string;
-  suggestions: string[];
-  relatedTopics: string[];
-  assistantMode: string;
+  role: string;
+  content: string;
   timestamp: string;
+}
+
+// 对话详情
+export interface ConversationDetail {
+  conversationId: string;
+  title: string;
+  messages: ConversationMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 对话列表项
+export interface ConversationItem {
+  conversationId: string;
+  title: string;
+  lastMessage: string;
+  messageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 教学资源
+export interface TeachingResourceItem {
+  resourceId: string;
+  fileName: string;
+  category: string;
+  description?: string;
+  fileSize: number;
+  uploadTime: string;
+  downloadCount: number;
+}
+
+// 知识库管理项
+export interface KnowledgeBaseManagementItem {
+  knowledgeBaseId: string;
+  name: string;
+  description?: string;
+  resourceCount: number;
+  status: 'active' | 'inactive' | 'pending';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// AI生成任务响应
+export interface AIGenerationTaskResponse {
+  taskId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  result?: {
+    downloadUrl?: string;
+    content?: string;
+    metadata?: any;
+  };
+  error?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+// 使用统计
+export interface UsageStats {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
+
+// 分页信息
+export interface PaginationInfo {
+  page: number;
+  size: number;
+  total: number;
+  totalPages: number;
 }
