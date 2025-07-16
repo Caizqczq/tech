@@ -339,7 +339,7 @@ class ApiService {
     title: string;
     updatedAt: string;
   }> {
-    return this.request(`/chat/conversations/${conversationId}/title`, {
+    return this.request(`/chat/${conversationId}/title`, {
       method: 'PUT',
       body: JSON.stringify({ title }),
     });
@@ -355,7 +355,7 @@ class ApiService {
       count: number;
     }[];
   }> {
-    return this.request('/chat/conversations/stats');
+    return this.request('/chat/stats');
   }
 
   // 智能教学资源管理相关
@@ -487,50 +487,60 @@ class ApiService {
     });
   }
 
-  async getResources(page: number = 1, size: number = 10, category?: string, keyword?: string): Promise<{
-    resources: {
-      resourceId: string;
+  async uploadBatch(files: File[], params: {
+    subject: string;
+    courseLevel: string;
+    autoVectorize?: boolean;
+  }): Promise<{
+    successCount: number;
+    failedCount: number;
+    results: {
       fileName: string;
-      category: string;
-      description?: string;
-      fileSize: number;
-      uploadTime: string;
-      downloadCount: number;
+      status: string;
+      resourceId?: string;
+      error?: string;
     }[];
-    pagination: {
-      page: number;
-      size: number;
-      total: number;
-      totalPages: number;
-    };
+    uploadTime: string;
   }> {
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('size', size.toString());
-    if (category) params.append('category', category);
-    if (keyword) params.append('keyword', keyword);
-    
-    return this.request(`/resources?${params.toString()}`);
+    return this.uploadBatchResources(files, params);
   }
 
-  async searchResourcesSemantic(query: string, limit: number = 10, threshold: number = 0.7): Promise<{
-    results: {
-      resourceId: string;
-      fileName: string;
-      category: string;
-      relevantContent: string;
-      similarity: number;
-      uploadTime: string;
-    }[];
-    query: string;
-    searchTime: string;
+  async getResources(params: {
+    page?: number;
+    size?: number;
+    resourceType?: string;
+    keywords?: string;
+  } = {}): Promise<{
+    content: any[];
+    number: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
   }> {
-    const params = new URLSearchParams();
-    params.append('query', query);
-    params.append('limit', limit.toString());
-    params.append('threshold', threshold.toString());
+    const searchParams = new URLSearchParams();
+    searchParams.append('page', (params.page || 0).toString());
+    searchParams.append('size', (params.size || 20).toString());
+    if (params.resourceType && params.resourceType !== 'all') {
+      searchParams.append('resourceType', params.resourceType);
+    }
+    if (params.keywords) {
+      searchParams.append('keywords', params.keywords);
+    }
     
-    return this.request(`/resources/search/semantic?${params.toString()}`);
+    return this.request(`/resources?${searchParams.toString()}`);
+  }
+
+  async searchResourcesSemantic(params: {
+    query: string;
+    topK?: number;
+    threshold?: number;
+  }): Promise<any[]> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('query', params.query);
+    searchParams.append('topK', (params.topK || 10).toString());
+    searchParams.append('threshold', (params.threshold || 0.7).toString());
+    
+    return this.request(`/resources/search/semantic?${searchParams.toString()}`);
   }
 
   async getResourceDetail(resourceId: string): Promise<{
@@ -581,6 +591,24 @@ class ApiService {
   }
 
   // 知识库RAG功能相关
+  async createKnowledgeBase(params: {
+    name: string;
+    description: string;
+    resourceIds: string[];
+  }): Promise<{
+    knowledgeBaseId: string;
+    name: string;
+    description?: string;
+    resourceCount: number;
+    status: string;
+    createdAt: string;
+  }> {
+    return this.request('/resources/knowledge-base', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
   async buildKnowledgeBase(resourceIds: string[], name: string, description?: string): Promise<{
     knowledgeBaseId: string;
     name: string;
@@ -602,7 +630,7 @@ class ApiService {
     message?: string;
     completedAt?: string;
   }> {
-    return this.request(`/knowledge-base/${knowledgeBaseId}/status`);
+    return this.request(`/resources/knowledge-base/${knowledgeBaseId}/status`);
   }
 
   async getKnowledgeBases(page: number = 1, size: number = 10): Promise<{
@@ -625,7 +653,7 @@ class ApiService {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('size', size.toString());
-    return this.request(`/knowledge-base?${params.toString()}`);
+    return this.request(`/resources/knowledge-base?${params.toString()}`);
   }
 
   async ragQuery(knowledgeBaseId: string, query: string, topK: number = 5): Promise<{
@@ -645,15 +673,15 @@ class ApiService {
     };
     responseTime: string;
   }> {
-    return this.request('/rag/query', {
+    return this.request('/resources/qa', {
       method: 'POST',
       body: JSON.stringify({ knowledgeBaseId, query, topK }),
     });
   }
 
   async ragStreamQuery(knowledgeBaseId: string, query: string, topK: number = 5): Promise<Response> {
-    const token = localStorage.getItem('auth_token');
-    return fetch(`${API_BASE_URL}/rag/query/stream`, {
+    const token = localStorage.getItem('token');
+    return fetch(`${API_BASE_URL}/resources/qa/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

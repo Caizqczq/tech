@@ -61,36 +61,42 @@ const MaterialUpload = () => {
         let result;
         if (fileType === 'audio') {
           // 语音转文字
-          result = await apiService.transcribeAudio(uploadFile.file);
+          result = await apiService.uploadAudio(uploadFile.file, {
+            transcriptionMode: 'sync',
+            needTranscription: true,
+            subject: metadata.subject,
+            description: `上传于 ${new Date().toLocaleString()}`,
+            autoVectorize: true,
+          });
+        } else if (fileType === 'document') {
+          // 文档上传
+          result = await apiService.uploadDocument(uploadFile.file, {
+            subject: metadata.subject || '未分类',
+            courseLevel: metadata.grade || 'undergraduate',
+            resourceType: 'lesson_plan',
+            description: `上传于 ${new Date().toLocaleString()}`,
+            keywords: metadata.tags.join(','),
+            autoVectorize: true,
+            autoExtractKeywords: true,
+          });
         } else {
-          // 普通文件上传
-          result = await apiService.uploadFile(uploadFile.file, fileType);
+          // 图片等其他文件暂时不处理，显示错误
+          throw new Error('暂不支持此文件类型的上传');
         }
 
         clearInterval(progressInterval);
 
-        if (result.success) {
-          setUploadedFiles(prev => prev.map(f => 
-            f.id === uploadFile.id 
-              ? { ...f, status: 'completed', progress: 100, result: result.data }
-              : f
-          ));
+        // API调用成功，直接设置为完成状态
+        setUploadedFiles(prev => prev.map(f => 
+          f.id === uploadFile.id 
+            ? { ...f, status: 'completed', progress: 100, result: result }
+            : f
+        ));
 
-          // 如果有元数据，上传到知识库
-          if (metadata.subject || metadata.grade || metadata.tags.length > 0) {
-            try {
-              await apiService.uploadToKnowledgeBase(uploadFile.file, metadata);
-              toast({
-                title: "上传成功",
-                description: `${uploadFile.file.name} 已添加到知识库`,
-              });
-            } catch (error) {
-              console.error('知识库上传失败:', error);
-            }
-          }
-        } else {
-          throw new Error(result.message || '上传失败');
-        }
+        toast({
+          title: "上传成功",
+          description: `${uploadFile.file.name} 已成功上传并处理`,
+        });
       } catch (error: any) {
         setUploadedFiles(prev => prev.map(f => 
           f.id === uploadFile.id 

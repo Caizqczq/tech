@@ -21,7 +21,6 @@ import {
   Wand2,
   Database,
   BarChart3,
-  Globe,
   ArrowRight,
   Palette,
   Cpu,
@@ -88,18 +87,6 @@ const Dashboard = () => {
         { label: '学习分析', path: '/analytics/learning' },
         { label: '效果评估', path: '/analytics/assessment' },
         { label: '趋势报告', path: '/analytics/trends' }
-      ]
-    },
-    {
-      title: '社区交流平台',
-      description: '与其他教育者分享经验和资源',
-      icon: Globe,
-      gradient: 'from-teal-500 to-cyan-600',
-      stats: '1.2K+ 活跃用户',
-      actions: [
-        { label: '讨论区', path: '/community/discussions' },
-        { label: '资源分享', path: '/community/sharing' },
-        { label: '专家问答', path: '/community/qa' }
       ]
     },
     {

@@ -1,16 +1,100 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, BookOpen, Download, Star, Filter, ArrowLeft } from 'lucide-react';
+import { Search, BookOpen, Download, Star, Filter, ArrowLeft, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { apiService } from '@/services/api';
 
 const KnowledgeBase = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [resources, setResources] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0
+  });
+
+  // 获取资源列表
+  const fetchResources = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: pagination.page,
+        size: pagination.size,
+        resourceType: selectedCategory === 'all' ? undefined : selectedCategory,
+        keywords: searchTerm || undefined
+      };
+      
+      const response = await apiService.getResources(params);
+      
+      setResources(response?.content || []);
+      setPagination({
+        page: response?.number || 0,
+        size: response?.size || 20,
+        totalElements: response?.totalElements || 0,
+        totalPages: response?.totalPages || 0
+      });
+    } catch (error) {
+      console.error('获取资源失败:', error);
+      toast({
+        title: "获取资源失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
+      setResources([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 语义搜索
+  const handleSemanticSearch = async () => {
+    if (!searchTerm.trim()) return;
+    
+    setLoading(true);
+    try {
+      const response = await apiService.searchResourcesSemantic({
+        query: searchTerm,
+        topK: 10,
+        threshold: 0.7
+      });
+      setResources(response || []);
+    } catch (error) {
+      console.error('语义搜索失败:', error);
+      toast({
+        title: "搜索失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 组件加载时获取资源
+  useEffect(() => {
+    fetchResources();
+  }, [selectedCategory, pagination.page]);
+
+  // 搜索时的防抖处理
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm) {
+        handleSemanticSearch();
+      } else {
+        fetchResources();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const categories = [
     { id: 'all', name: '全部', count: 156 },
@@ -21,61 +105,22 @@ const KnowledgeBase = () => {
     { id: 'history', name: '历史', count: 13 }
   ];
 
-  const resources = [
-    {
-      id: 1,
-      title: '高中数学函数专题复习',
-      description: '包含二次函数、指数函数、对数函数等重点内容',
-      category: '数学',
-      author: '李老师',
-      downloads: 1245,
-      rating: 4.8,
-      thumbnail: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=300&h=200&fit=crop'
-    },
-    {
-      id: 2,
-      title: '古诗词情感分析教学法',
-      description: '创新的语文教学方法，提高学生文学素养',
-      category: '语文',
-      author: '王老师',
-      downloads: 956,
-      rating: 4.9,
-      thumbnail: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=300&h=200&fit=crop'
-    },
-    {
-      id: 3,
-      title: '化学实验安全操作指南',
-      description: '全面的化学实验安全知识和操作规范',
-      category: '科学',
-      author: '张老师',
-      downloads: 834,
-      rating: 4.7,
-      thumbnail: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=300&h=200&fit=crop'
-    },
-    {
-      id: 4,
-      title: '英语口语交际训练',
-      description: '提高学生英语口语表达能力的训练方法',
-      category: '英语',
-      author: '陈老师',
-      downloads: 723,
-      rating: 4.6,
-      thumbnail: 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=300&h=200&fit=crop'
+  const handleDownload = async (resourceId: string, title: string) => {
+    try {
+      const response = await apiService.getResourceDownloadUrl(resourceId);
+      window.open(response.downloadUrl, '_blank');
+      toast({
+        title: "开始下载",
+        description: `"${title}" 下载已开始`,
+      });
+    } catch (error) {
+      console.error('下载失败:', error);
+      toast({
+        title: "下载失败",
+        description: "请稍后重试",
+        variant: "destructive",
+      });
     }
-  ];
-
-  const handleSearch = () => {
-    toast({
-      title: "搜索功能",
-      description: `正在搜索 "${searchTerm}"...`,
-    });
-  };
-
-  const handleDownload = (resourceId: number, title: string) => {
-    toast({
-      title: "下载资源",
-      description: `正在下载 "${title}"...`,
-    });
   };
 
   return (
@@ -111,10 +156,11 @@ const KnowledgeBase = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyPress={(e) => e.key === 'Enter' && handleSemanticSearch()}
               />
             </div>
-            <Button onClick={handleSearch} className="px-8">
+            <Button onClick={handleSemanticSearch} className="px-8" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               搜索
             </Button>
           </div>
@@ -135,62 +181,93 @@ const KnowledgeBase = () => {
         </div>
 
         {/* 资源列表 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {resources.map((resource) => (
-            <Card key={resource.id} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <div className="relative overflow-hidden rounded-t-lg">
-                <img 
-                  src={resource.thumbnail} 
-                  alt={resource.title}
-                  className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-20 transition-opacity"></div>
-              </div>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{resource.category}</span>
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                    <span className="text-sm text-gray-600">{resource.rating}</span>
-                  </div>
-                </div>
-                <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
-                  {resource.title}
-                </CardTitle>
-                <CardDescription className="text-sm text-gray-600">
-                  {resource.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                  <span>作者: {resource.author}</span>
-                  <div className="flex items-center space-x-1">
-                    <Download className="h-4 w-4" />
-                    <span>{resource.downloads}</span>
-                  </div>
-                </div>
-                <Button 
-                  className="w-full"
-                  onClick={() => handleDownload(resource.id, resource.title)}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  下载资源
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* 分页 */}
-        <div className="flex justify-center mt-12">
-          <div className="flex space-x-2">
-            <Button variant="outline" disabled>上一页</Button>
-            <Button variant="default">1</Button>
-            <Button variant="outline">2</Button>
-            <Button variant="outline">3</Button>
-            <Button variant="outline">下一页</Button>
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            <span className="ml-2 text-gray-600">加载中...</span>
           </div>
-        </div>
+        ) : resources.length === 0 ? (
+          <div className="text-center py-12">
+            <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-600 mb-2">暂无资源</h3>
+            <p className="text-gray-500">尝试搜索其他关键词或选择不同的分类</p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {resources.map((resource) => (
+                <Card key={resource.id || resource.resourceId} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <div className="relative overflow-hidden rounded-t-lg">
+                    <div className="w-full h-48 bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                      <BookOpen className="h-16 w-16 text-white opacity-60" />
+                    </div>
+                    <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                  </div>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        {resource.category || resource.resourceType || '文档'}
+                      </span>
+                      <div className="flex items-center space-x-1">
+                        <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                        <span className="text-sm text-gray-600">{resource.rating || '4.5'}</span>
+                      </div>
+                    </div>
+                    <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 transition-colors">
+                      {resource.title || resource.fileName || '未命名资源'}
+                    </CardTitle>
+                    <CardDescription className="text-sm text-gray-600">
+                      {resource.description || '暂无描述'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                      <span>
+                        {resource.uploadTime ? `上传时间: ${new Date(resource.uploadTime).toLocaleDateString()}` 
+                         : resource.author ? `作者: ${resource.author}` 
+                         : ''}
+                      </span>
+                      <div className="flex items-center space-x-1">
+                        <Download className="h-4 w-4" />
+                        <span>{resource.downloads || resource.downloadCount || 0}</span>
+                      </div>
+                    </div>
+                    <Button 
+                      className="w-full"
+                      onClick={() => handleDownload(resource.id || resource.resourceId, resource.title || resource.fileName)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      下载资源
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            
+            {/* 分页控件 */}
+            {pagination.totalPages > 1 && (
+              <div className="flex justify-center items-center space-x-4 mt-8">
+                <Button
+                  variant="outline"
+                  disabled={pagination.page === 0}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                >
+                  上一页
+                </Button>
+                <span className="text-sm text-gray-600">
+                  第 {pagination.page + 1} 页，共 {pagination.totalPages} 页
+                </span>
+                <Button
+                  variant="outline"
+                  disabled={pagination.page >= pagination.totalPages - 1}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                >
+                  下一页
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </main>
     </div>
   );

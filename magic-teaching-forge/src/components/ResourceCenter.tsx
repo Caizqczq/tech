@@ -181,69 +181,6 @@ const ResourceCenter: React.FC = () => {
     { id: 'exercise', label: '练习题库', icon: PenTool, count: 28, color: 'from-cyan-500 to-blue-600' }
   ];
 
-  const mockResources: ResourceItem[] = [
-    {
-      id: 'res_001',
-      title: '高等数学微积分基础教案',
-      type: 'lesson_plan',
-      size: '2.4 MB',
-      uploadDate: '2024-01-15',
-      author: '张教授',
-      tags: ['微积分', '高等数学', '本科', '基础'],
-      downloads: 156,
-      rating: 4.8,
-      description: '详细的微积分基础知识教案，包含导数、积分的概念和应用。',
-      status: 'vectorized'
-    },
-    {
-      id: 'res_002',
-      title: '线性代数矩阵运算研究论文',
-      type: 'paper',
-      size: '1.8 MB',
-      uploadDate: '2024-01-14',
-      author: '李教授',
-      tags: ['线性代数', '矩阵', '研究', '论文'],
-      downloads: 89,
-      rating: 4.6,
-      description: '关于矩阵运算优化算法的最新研究成果。',
-      status: 'ready'
-    },
-    {
-      id: 'res_003',
-      title: '概率论与数理统计音频讲座',
-      type: 'lecture',
-      size: '45.2 MB',
-      uploadDate: '2024-01-13',
-      author: '王教授',
-      tags: ['概率论', '统计', '音频', '讲座'],
-      downloads: 234,
-      rating: 4.9,
-      description: '概率论基础概念的详细音频讲解。',
-      status: 'processing'
-    }
-  ];
-
-  const mockKnowledgeBases: KnowledgeBase[] = [
-    {
-      id: 'kb_001',
-      name: '高等数学知识库',
-      description: '包含微积分、线性代数、概率论等核心内容',
-      resourceCount: 25,
-      status: 'ready',
-      createdAt: '2024-01-10',
-      lastUpdated: '2024-01-15'
-    },
-    {
-      id: 'kb_002',
-      name: '数学分析专题库',
-      description: '深入的数学分析理论和应用案例',
-      resourceCount: 18,
-      status: 'building',
-      createdAt: '2024-01-12',
-      lastUpdated: '2024-01-15'
-    }
-  ];
-
   const resourceStats = {
     totalResources: 156,
     totalSize: '2.3 GB',
@@ -283,13 +220,6 @@ const ResourceCenter: React.FC = () => {
       default: return <Badge className="bg-gray-100 text-gray-700 border-gray-200">未知</Badge>;
     }
   };
-
-  const filteredResources = mockResources.filter(resource => {
-    const matchesSearch = resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || resource.type === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   return (
     <div className="space-y-6">
@@ -611,8 +541,8 @@ const ResourceCenter: React.FC = () => {
 
         <TabsContent value="knowledge" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {mockKnowledgeBases.map((kb) => (
-              <Card key={kb.id} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
+            {knowledgeBases.map((kb) => (
+              <Card key={kb.id || kb.knowledgeBaseId} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
@@ -624,7 +554,7 @@ const ResourceCenter: React.FC = () => {
                           {kb.name}
                         </CardTitle>
                         <CardDescription className="text-gray-600 dark:text-gray-400">
-                          {kb.description}
+                          {kb.description || '暂无描述'}
                         </CardDescription>
                       </div>
                     </div>
@@ -637,11 +567,13 @@ const ResourceCenter: React.FC = () => {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">包含资源</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{kb.resourceCount} 个</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{kb.resourceCount || 0} 个</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600 dark:text-gray-400">最后更新</span>
-                      <span className="text-gray-900 dark:text-white">{kb.lastUpdated}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {kb.lastUpdated || kb.updatedAt ? new Date(kb.lastUpdated || kb.updatedAt).toLocaleDateString() : '未知'}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2 pt-2">
                       <Button size="sm" className="flex-1">

@@ -149,7 +149,7 @@ const ProjectDetail = () => {
   const handleShare = () => {
     toast({
       title: "分享成功",
-      description: "项目已分享到社区",
+      description: "项目链接已复制到剪贴板",
     });
   };
 
@@ -279,7 +279,7 @@ const ProjectDetail = () => {
                 onClick={handleShare}
               >
                 <Share2 className="mr-2 h-4 w-4" />
-                分享到社区
+                分享项目
               </Button>
               <Button 
                 size="sm"
