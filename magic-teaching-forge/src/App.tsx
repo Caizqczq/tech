@@ -13,10 +13,8 @@ import Analytics from "./pages/Analytics";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import MaterialUpload from "./pages/MaterialUpload";
 import AIGeneration from "./pages/AIGeneration";
-import ResourceManagement from "./pages/ResourceManagement";
 import SmartChat from "./pages/SmartChat";
 import NotFound from "./pages/NotFound";
-import AICreation from "@/components/AICreation";
 import ResourceCenter from "@/components/ResourceCenter";
 
 const queryClient = new QueryClient();
@@ -39,8 +37,6 @@ const App = () => (
               <Route path="knowledge" element={<KnowledgeBase />} />
               <Route path="upload" element={<MaterialUpload />} />
               <Route path="ai-generation" element={<AIGeneration />} />
-              <Route path="ai-creation" element={<AICreation />} />
-              <Route path="resources" element={<ResourceManagement />} />
               <Route path="resource-center" element={<ResourceCenter />} />
               <Route path="chat" element={<SmartChat />} />
               <Route path="*" element={<NotFound />} />

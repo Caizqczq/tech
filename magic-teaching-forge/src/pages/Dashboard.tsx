@@ -48,21 +48,21 @@ const Dashboard = () => {
       gradient: 'from-purple-500 to-pink-600',
       stats: '本月创建 156 个',
       actions: [
-        { label: '智能课程设计', path: '/create/course' },
-        { label: 'AI教案生成', path: '/create/lesson' },
-        { label: '互动内容制作', path: '/create/interactive' }
+        { label: 'PPT课件生成', path: '/ai-generation?type=ppt' },
+        { label: '习题集生成', path: '/ai-generation?type=quiz' },
+        { label: '讲解文本生成', path: '/ai-generation?type=explanation' }
       ]
     },
     {
-      title: '课程管理中心',
-      description: '统一管理您的所有教学课程',
-      icon: BookOpen,
+      title: 'AI智能对话',
+      description: '与AI助手进行智能教学对话',
+      icon: MessageSquare,
       gradient: 'from-green-500 to-teal-600',
-      stats: '共 42 门课程',
+      stats: '本月对话 234 次',
       actions: [
-        { label: '我的课程', path: '/courses/my' },
-        { label: '课程模板', path: '/courses/templates' },
-        { label: '共享课程', path: '/courses/shared' }
+        { label: '智能助手', path: '/chat?mode=assistant' },
+        { label: '教学建议', path: '/chat?mode=advice' },
+        { label: '内容分析', path: '/chat?mode=analysis' }
       ]
     },
     {
@@ -72,9 +72,9 @@ const Dashboard = () => {
       gradient: 'from-orange-500 to-red-600',
       stats: '2.3K+ 资源',
       actions: [
-        { label: '素材库', path: '/resources/materials' },
-        { label: '题库管理', path: '/resources/questions' },
-        { label: '媒体资源', path: '/resources/media' }
+        { label: '资源管理', path: '/resource-center?tab=resources' },
+        { label: '知识库', path: '/resource-center?tab=knowledge' },
+        { label: '素材上传', path: '/upload' }
       ]
     },
     {
@@ -84,9 +84,9 @@ const Dashboard = () => {
       gradient: 'from-indigo-500 to-blue-600',
       stats: '89% 完成率',
       actions: [
-        { label: '学习分析', path: '/analytics/learning' },
-        { label: '效果评估', path: '/analytics/assessment' },
-        { label: '趋势报告', path: '/analytics/trends' }
+        { label: '数据概览', path: '/analytics' },
+        { label: '知识库搜索', path: '/knowledge' },
+        { label: '项目详情', path: '/project/demo' }
       ]
     },
     {
@@ -96,9 +96,9 @@ const Dashboard = () => {
       gradient: 'from-violet-500 to-purple-600',
       stats: '即时响应',
       actions: [
-        { label: '教学咨询', path: '/assistant/teaching' },
-        { label: '技术支持', path: '/assistant/support' },
-        { label: '创意建议', path: '/assistant/ideas' }
+        { label: '智能对话', path: '/chat' },
+        { label: '创建项目', path: '/create' },
+        { label: 'AI生成', path: '/ai-generation' }
       ]
     }
   ];
@@ -288,7 +288,11 @@ const Dashboard = () => {
                   <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                     "今天想创建什么类型的课程？我可以帮您快速生成教案和互动内容。"
                   </p>
-                  <Button size="sm" className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600">
+                  <Button 
+                    size="sm" 
+                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    onClick={() => navigate('/chat')}
+                  >
                     <MessageSquare className="mr-2 h-4 w-4" />
                     开始对话
                   </Button>

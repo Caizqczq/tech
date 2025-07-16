@@ -71,13 +71,13 @@ const MainLayout: React.FC = () => {
     { 
       icon: Wand2, 
       label: 'AI创作', 
-      path: '/ai-creation', 
+      path: '/ai-generation', 
       badge: 'New',
       gradient: 'from-purple-500 to-pink-600',
       subItems: [
-        { label: 'PPT课件生成', path: '/ai-creation?type=ppt' },
-        { label: '习题集生成', path: '/ai-creation?type=exercise' },
-        { label: '讲解文本生成', path: '/ai-creation?type=text' }
+        { label: 'PPT课件生成', path: '/ai-generation?type=ppt' },
+        { label: '习题集生成', path: '/ai-generation?type=quiz' },
+        { label: '讲解文本生成', path: '/ai-generation?type=explanation' }
       ]
     },
     { 

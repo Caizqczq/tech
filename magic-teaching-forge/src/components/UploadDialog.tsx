@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, FileText, Music, Files } from 'lucide-react';
 import { apiService } from '@/services/api';
-import { useToast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface UploadDialogProps {
   onUploadSuccess: () => void;
@@ -18,7 +18,7 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState('document');
-  const { toast } = useToast();
+  // toast is imported directly from hooks
 
   const [documentForm, setDocumentForm] = useState({
     file: null as File | null,

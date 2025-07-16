@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,10 +66,19 @@ interface KnowledgeBase {
 }
 
 const ResourceCenter: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // 从URL参数获取初始tab值
+  const getInitialTab = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') || 'resources';
+  };
+  
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [activeTab, setActiveTab] = useState('resources');
+  const [activeTab, setActiveTab] = useState(getInitialTab());
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +88,14 @@ const ResourceCenter: React.FC = () => {
     totalElements: 0,
     totalPages: 0
   });
+
+  // 当tab改变时更新URL
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    const params = new URLSearchParams(location.search);
+    params.set('tab', newTab);
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  };
 
   // 获取资源列表
   const fetchResources = async () => {
@@ -161,6 +179,15 @@ const ResourceCenter: React.FC = () => {
       console.error('下载资源失败:', error);
     }
   };
+
+  // 监听URL变化，更新activeTab
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabFromUrl = params.get('tab') || 'resources';
+    if (tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     fetchResources();
@@ -324,7 +351,7 @@ const ResourceCenter: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-white/30 dark:border-gray-700/30">
           <TabsTrigger value="resources" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700">
             <FileText className="h-4 w-4 mr-2" />

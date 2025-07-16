@@ -30,7 +30,7 @@ const QuickActions = () => {
       title: '教学资源管理',
       description: '按学科知识点分类管理教学资源',
       color: 'bg-green-500',
-      path: '/resources',
+      path: '/resource-center',
       features: ['自动分类', '资源检索', '预览功能']
     },
     {
