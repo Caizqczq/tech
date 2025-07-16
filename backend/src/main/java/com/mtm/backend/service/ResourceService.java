@@ -21,7 +21,6 @@ import com.mtm.backend.repository.mapper.TeachingResourceMapper;
 import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
 import com.mtm.backend.repository.mapper.KnowledgeBaseMapper;
 import com.mtm.backend.utils.LocalFileUtil;
-import com.mtm.backend.utils.OssUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.alibaba.cloud.ai.dashscope.audio.transcription.AudioTranscriptionModel;

@@ -13,7 +13,7 @@ import com.mtm.backend.repository.KnowledgeBase;
 import com.mtm.backend.repository.TeachingResource;
 import com.mtm.backend.repository.mapper.KnowledgeBaseMapper;
 import com.mtm.backend.repository.mapper.TeachingResourceMapper;
-import com.mtm.backend.utils.OssUtil;
+import com.mtm.backend.utils.LocalFileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -42,7 +42,7 @@ public class KnowledgeBaseService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final TeachingResourceMapper teachingResourceMapper;
     private final VectorStore vectorStore;
-    private final OssUtil ossUtil;
+    private final LocalFileUtil localFileUtil;
     
     /**
      * 构建知识库
@@ -227,7 +227,7 @@ public class KnowledgeBaseService {
     }
     
     private List<Document> processResource(TeachingResource resource, TokenTextSplitter textSplitter, String knowledgeBaseId) throws Exception {
-        String downloadUrl = ossUtil.generateUrl(resource.getFilePath());
+        String downloadUrl = localFileUtil.generateUrl(resource.getFilePath());
         
         List<Document> documents = new ArrayList<>();
         
