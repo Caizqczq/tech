@@ -14,4 +14,6 @@ public class ResourceQueryDTO {
     private String subject;
     private String courseLevel;
     private String keywords;
+    private Integer page;
+    private Integer size;
 }

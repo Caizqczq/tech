@@ -282,11 +282,12 @@ public class ResourceController {
     /** 5.2.1 分页查询教学资源 */
     @GetMapping
     public ResponseEntity<?> getResources(
+            @RequestParam(value = "page", defaultValue = "0") Integer page,
+            @RequestParam(value = "size", defaultValue = "20") Integer size,
             @RequestParam(value = "resourceType", required = false) String resourceType,
             @RequestParam(value = "subject", required = false) String subject,
             @RequestParam(value = "courseLevel", required = false) String courseLevel,
-            @RequestParam(value = "keywords", required = false) String keywords,
-            @PageableDefault(page = 0, size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @RequestParam(value = "keywords", required = false) String keywords) {
 
         try {
             // 验证用户登录
@@ -295,9 +296,18 @@ public class ResourceController {
                 return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
             }
 
+            // 参数验证
+            if (page < 0) {
+                return ResponseEntity.badRequest().body(createErrorResponse("页码不能为负数"));
+            }
+            
+            if (size < 1 || size > 100) {
+                return ResponseEntity.badRequest().body(createErrorResponse("每页大小必须在1-100之间"));
+            }
+
             // 添加参数调试日志
-            log.info("接收到的参数 - resourceType: [{}], subject: [{}], courseLevel: [{}], keywords: [{}]",
-                    resourceType, subject, courseLevel, keywords);
+            log.info("接收到的参数 - page: {}, size: {}, resourceType: [{}], subject: [{}], courseLevel: [{}], keywords: [{}]",
+                    page, size, resourceType, subject, courseLevel, keywords);
 
             // 参数清理 - 去除可能的多余字符
             String cleanCourseLevel = courseLevel != null ? courseLevel.trim().replaceAll(",$", "") : null;
@@ -309,14 +319,15 @@ public class ResourceController {
                     cleanResourceType, cleanSubject, cleanCourseLevel, cleanKeywords);
 
             // 构建查询DTO
-            ResourceQueryDTO queryDTO = ResourceQueryDTO.builder()
-                    .resourceType(cleanResourceType)
-                    .subject(cleanSubject)
-                    .courseLevel(cleanCourseLevel)
-                    .keywords(cleanKeywords)
-                    .build();
+            ResourceQueryDTO queryDTO = new ResourceQueryDTO();
+            queryDTO.setPage(page);
+            queryDTO.setSize(size);
+            queryDTO.setResourceType(cleanResourceType);
+            queryDTO.setSubject(cleanSubject);
+            queryDTO.setCourseLevel(cleanCourseLevel);
+            queryDTO.setKeywords(cleanKeywords);
             
-            Object result = resourceService.getResources(queryDTO, pageable, userId);
+            Object result = resourceService.getResources(queryDTO, userId);
             return ResponseEntity.ok(result);
             
         } catch (Exception e) {
@@ -324,6 +335,7 @@ public class ResourceController {
             return ResponseEntity.internalServerError().body(createErrorResponse("查询教学资源失败: " + e.getMessage()));
         }
     }
+    
     
     /** 5.2.2 语义搜索资源 */
     @GetMapping("/search/semantic")
@@ -621,8 +633,8 @@ public class ResourceController {
                 return ResponseEntity.status(401).body("用户未登录");
             }
             
-            String downloadUrl = resourceService.getResourceDownloadUrl(id, userId);
-            return ResponseEntity.ok(Map.of("downloadUrl", downloadUrl));
+            Map<String, Object> result = resourceService.getResourceDownloadUrl(id, userId);
+            return ResponseEntity.ok(result);
             
         } catch (Exception e) {
             log.error("获取下载链接失败", e);

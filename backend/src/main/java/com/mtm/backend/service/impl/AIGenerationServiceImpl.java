@@ -1,6 +1,8 @@
 package com.mtm.backend.service.impl;
 
 import com.mtm.backend.model.DTO.ExplanationRequestDTO;
+import com.mtm.backend.model.DTO.PPTGenerationDTO;
+import com.mtm.backend.model.DTO.QuizGenerationDTO;
 import com.mtm.backend.model.VO.TaskResponseVO;
 import com.mtm.backend.service.AIGenerationService;
 import com.mtm.backend.service.TaskService;
@@ -96,15 +98,47 @@ public class AIGenerationServiceImpl implements AIGenerationService {
     }
     
     @Override
-    public TaskResponseVO generatePPT(Object request, Integer userId) {
-        // TODO: 实现PPT生成逻辑
-        throw new UnsupportedOperationException("PPT生成功能暂未实现");
+    public TaskResponseVO generatePPT(PPTGenerationDTO request, Integer userId) {
+        try {
+            // 创建任务
+            String taskId = taskService.createTask("ppt", request, userId);
+            
+            // 异步执行生成任务
+            generatePPTAsync(taskId, request, userId);
+            
+            return TaskResponseVO.builder()
+                    .taskId(taskId)
+                    .status("processing")
+                    .message("PPT生成任务已启动")
+                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("创建PPT生成任务失败", e);
+            throw new RuntimeException("创建PPT生成任务失败: " + e.getMessage());
+        }
     }
     
     @Override
-    public TaskResponseVO generateQuiz(Object request, Integer userId) {
-        // TODO: 实现习题生成逻辑
-        throw new UnsupportedOperationException("习题生成功能暂未实现");
+    public TaskResponseVO generateQuiz(QuizGenerationDTO request, Integer userId) {
+        try {
+            // 创建任务
+            String taskId = taskService.createTask("quiz", request, userId);
+            
+            // 异步执行生成任务
+            generateQuizAsync(taskId, request, userId);
+            
+            return TaskResponseVO.builder()
+                    .taskId(taskId)
+                    .status("processing")
+                    .message("习题生成任务已启动")
+                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .build();
+                    
+        } catch (Exception e) {
+            log.error("创建习题生成任务失败", e);
+            throw new RuntimeException("创建习题生成任务失败: " + e.getMessage());
+        }
     }
     
     private String buildExplanationSystemPrompt(ExplanationRequestDTO request) {
@@ -150,5 +184,192 @@ public class AIGenerationServiceImpl implements AIGenerationService {
     
     private String buildExplanationQuery(ExplanationRequestDTO request) {
         return "请详细解释：" + request.getTopic();
+    }
+    
+    @Async
+    public void generatePPTAsync(String taskId, PPTGenerationDTO request, Integer userId) {
+        try {
+            log.info("开始生成PPT，任务ID：{}，主题：{}", taskId, request.getTopic());
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 10, "正在构建PPT提示词...");
+            
+            // 构建系统提示词
+            String systemPrompt = buildPPTSystemPrompt(request);
+            
+            // 构建用户查询
+            String userQuery = buildPPTQuery(request);
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 30, "正在调用AI模型生成PPT...");
+            
+            // 创建ChatClient并生成内容
+            ChatClient chatClient = chatClientBuilder
+                    .defaultSystem(systemPrompt)
+                    .build();
+            
+            String pptContent = chatClient.prompt(userQuery)
+                    .call()
+                    .content();
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 80, "正在处理PPT生成结果...");
+            
+            // 构建结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("content", pptContent);
+            result.put("topic", request.getTopic());
+            result.put("subject", request.getSubject());
+            result.put("courseLevel", request.getCourseLevel());
+            result.put("slideCount", request.getSlideCount());
+            result.put("style", request.getStyle());
+            result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            
+            // 完成任务
+            taskService.completeTask(taskId, result);
+            
+            log.info("PPT生成完成，任务ID：{}", taskId);
+            
+        } catch (Exception e) {
+            log.error("生成PPT失败，任务ID：{}", taskId, e);
+            taskService.updateTaskStatus(taskId, "failed", 0, "生成失败: " + e.getMessage());
+        }
+    }
+    
+    @Async
+    public void generateQuizAsync(String taskId, QuizGenerationDTO request, Integer userId) {
+        try {
+            log.info("开始生成习题，任务ID：{}，主题：{}", taskId, request.getTopic());
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 10, "正在构建习题提示词...");
+            
+            // 构建系统提示词
+            String systemPrompt = buildQuizSystemPrompt(request);
+            
+            // 构建用户查询
+            String userQuery = buildQuizQuery(request);
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 30, "正在调用AI模型生成习题...");
+            
+            // 创建ChatClient并生成内容
+            ChatClient chatClient = chatClientBuilder
+                    .defaultSystem(systemPrompt)
+                    .build();
+            
+            String quizContent = chatClient.prompt(userQuery)
+                    .call()
+                    .content();
+            
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 80, "正在处理习题生成结果...");
+            
+            // 构建结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("content", quizContent);
+            result.put("topic", request.getTopic());
+            result.put("subject", request.getSubject());
+            result.put("courseLevel", request.getCourseLevel());
+            result.put("difficulty", request.getDifficulty());
+            result.put("questionCount", request.getQuestionCount());
+            result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            
+            // 完成任务
+            taskService.completeTask(taskId, result);
+            
+            log.info("习题生成完成，任务ID：{}", taskId);
+            
+        } catch (Exception e) {
+            log.error("生成习题失败，任务ID：{}", taskId, e);
+            taskService.updateTaskStatus(taskId, "failed", 0, "生成失败: " + e.getMessage());
+        }
+    }
+    
+    private String buildPPTSystemPrompt(PPTGenerationDTO request) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一位专业的").append(request.getSubject()).append("教师，");
+        prompt.append("擅长制作精美的教学PPT课件。\n\n");
+        
+        prompt.append("请根据以下要求生成PPT内容：\n");
+        prompt.append("- 学科：").append(request.getSubject()).append("\n");
+        prompt.append("- 课程层次：").append(request.getCourseLevel()).append("\n");
+        prompt.append("- 幻灯片数量：").append(request.getSlideCount()).append("张\n");
+        
+        if (request.getStyle() != null) {
+            prompt.append("- PPT风格：").append(request.getStyle()).append("\n");
+        }
+        
+        if (request.getTargetAudience() != null) {
+            prompt.append("- 目标受众：").append(request.getTargetAudience()).append("\n");
+        }
+        
+        if (request.getDuration() != null) {
+            prompt.append("- 预计时长：").append(request.getDuration()).append("分钟\n");
+        }
+        
+        prompt.append("\n请确保PPT内容：\n");
+        prompt.append("1. 结构清晰，逻辑合理\n");
+        prompt.append("2. 每张幻灯片内容适中，不要过于拥挤\n");
+        prompt.append("3. 包含标题、要点、总结等完整结构\n");
+        
+        if (request.getIncludeFormulas() != null && request.getIncludeFormulas()) {
+            prompt.append("4. 包含相关的公式和计算\n");
+        }
+        
+        if (request.getIncludeProofs() != null && request.getIncludeProofs()) {
+            prompt.append("5. 包含必要的证明过程\n");
+        }
+        
+        prompt.append("\n请按照以下格式输出每张幻灯片：\n");
+        prompt.append("【幻灯片X】标题\n内容要点\n\n");
+        
+        return prompt.toString();
+    }
+    
+    private String buildPPTQuery(PPTGenerationDTO request) {
+        return "请为主题\"" + request.getTopic() + "\"制作一套完整的PPT课件。";
+    }
+    
+    private String buildQuizSystemPrompt(QuizGenerationDTO request) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是一位专业的").append(request.getSubject()).append("教师，");
+        prompt.append("擅长出题和评估学生学习效果。\n\n");
+        
+        prompt.append("请根据以下要求生成习题：\n");
+        prompt.append("- 学科：").append(request.getSubject()).append("\n");
+        prompt.append("- 课程层次：").append(request.getCourseLevel()).append("\n");
+        prompt.append("- 难度级别：").append(request.getDifficulty()).append("\n");
+        prompt.append("- 题目数量：").append(request.getQuestionCount()).append("题\n");
+        
+        if (request.getQuestionTypes() != null) {
+            prompt.append("- 题目类型：").append(request.getQuestionTypes()).append("\n");
+        }
+        
+        if (request.getTimeLimit() != null) {
+            prompt.append("- 时间限制：").append(request.getTimeLimit()).append("分钟\n");
+        }
+        
+        prompt.append("\n请确保习题：\n");
+        prompt.append("1. 难度适中，符合学生水平\n");
+        prompt.append("2. 题目表述清晰，无歧义\n");
+        prompt.append("3. 涵盖主要知识点\n");
+        
+        if (request.getIncludeSteps() != null && request.getIncludeSteps()) {
+            prompt.append("4. 包含详细的解题步骤\n");
+        }
+        
+        if (request.getIncludeAnswers() != null && request.getIncludeAnswers()) {
+            prompt.append("5. 包含标准答案\n");
+        }
+        
+        prompt.append("\n请按照以下格式输出每道题：\n");
+        prompt.append("【题目X】\n题目内容\n\n【答案X】\n答案内容\n\n");
+        
+        return prompt.toString();
+    }
+    
+    private String buildQuizQuery(QuizGenerationDTO request) {
+        return "请为主题\"" + request.getTopic() + "\"出一套完整的习题。";
     }
 }

@@ -339,7 +339,7 @@ class ApiService {
     title: string;
     updatedAt: string;
   }> {
-    return this.request(`/chat/${conversationId}/title`, {
+    return this.request(`/chat/conversations/${conversationId}/title`, {
       method: 'PUT',
       body: JSON.stringify({ title }),
     });
@@ -675,7 +675,13 @@ class ApiService {
   }> {
     return this.request('/resources/qa', {
       method: 'POST',
-      body: JSON.stringify({ knowledgeBaseId, query, topK }),
+      body: JSON.stringify({ 
+        knowledgeBaseId, 
+        query, 
+        topK,
+        answerMode: 'detailed',
+        includeReferences: true
+      }),
     });
   }
 
@@ -687,7 +693,13 @@ class ApiService {
         'Content-Type': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ knowledgeBaseId, query, topK }),
+      body: JSON.stringify({ 
+        knowledgeBaseId, 
+        query, 
+        topK,
+        answerMode: 'detailed',
+        includeReferences: true
+      }),
     });
   }
 

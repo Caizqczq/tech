@@ -1,6 +1,8 @@
 package com.mtm.backend.service;
 
 import com.mtm.backend.model.DTO.ExplanationRequestDTO;
+import com.mtm.backend.model.DTO.PPTGenerationDTO;
+import com.mtm.backend.model.DTO.QuizGenerationDTO;
 import com.mtm.backend.model.VO.TaskResponseVO;
 
 /**
@@ -16,10 +18,10 @@ public interface AIGenerationService {
     /**
      * 生成PPT课件
      */
-    TaskResponseVO generatePPT(Object request, Integer userId);
+    TaskResponseVO generatePPT(PPTGenerationDTO request, Integer userId);
     
     /**
      * 生成习题
      */
-    TaskResponseVO generateQuiz(Object request, Integer userId);
+    TaskResponseVO generateQuiz(QuizGenerationDTO request, Integer userId);
 }

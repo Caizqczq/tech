@@ -147,7 +147,7 @@ public class ConversationController {
     /**
      * 更新对话标题
      */
-    @PutMapping("/{id}/title")
+    @PutMapping("/conversations/{id}/title")
     public ResponseEntity<?> updateConversationTitle(
             @PathVariable String id,
             @RequestBody Map<String, String> request) {

@@ -232,7 +232,73 @@ public class ResourceService {
     }
     
     /**
-     * 分页查询教学资源
+     * 分页查询教学资源 - 新版本适配前端需求
+     */
+    public Map<String, Object> getResources(ResourceQueryDTO queryDTO, Integer userId) {
+        try {
+            QueryWrapper<TeachingResource> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("user_id", userId);
+            
+            if (queryDTO.getResourceType() != null && !queryDTO.getResourceType().trim().isEmpty()) {
+                queryWrapper.and(wrapper -> wrapper
+                    .eq("document_type", queryDTO.getResourceType())
+                    .or()
+                    .eq("audio_type", queryDTO.getResourceType())
+                );
+            }
+            
+            if (queryDTO.getKeywords() != null && !queryDTO.getKeywords().trim().isEmpty()) {
+                queryWrapper.and(wrapper -> wrapper
+                    .like("title", queryDTO.getKeywords())
+                    .or()
+                    .like("description", queryDTO.getKeywords())
+                    .or()
+                    .like("keywords", queryDTO.getKeywords())
+                );
+            }
+            
+            queryWrapper.orderByDesc("created_at");
+            
+            Page<TeachingResource> pageInfo = new Page<>(queryDTO.getPage(), queryDTO.getSize());
+            IPage<TeachingResource> resourcePage = teachingResourceMapper.selectPage(pageInfo, queryWrapper);
+            
+            List<Map<String, Object>> resourceList = resourcePage.getRecords().stream()
+                    .map(resource -> {
+                        Map<String, Object> item = new HashMap<>();
+                        item.put("id", resource.getId());
+                        item.put("resourceId", resource.getId());
+                        item.put("fileName", resource.getOriginalName());
+                        item.put("title", resource.getTitle());
+                        item.put("resourceType", "document".equals(resource.getResourceType()) ? 
+                                resource.getDocumentType() : resource.getAudioType());
+                        item.put("subject", resource.getSubject());
+                        item.put("courseLevel", resource.getCourseLevel());
+                        item.put("description", resource.getDescription());
+                        item.put("fileSize", resource.getFileSize());
+                        item.put("uploadTime", resource.getCreatedAt());
+                        item.put("downloadCount", 0); // 默认值
+                        item.put("status", resource.getProcessingStatus());
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("content", resourceList);
+            result.put("number", resourcePage.getCurrent() - 1);
+            result.put("size", resourcePage.getSize());
+            result.put("totalElements", resourcePage.getTotal());
+            result.put("totalPages", resourcePage.getPages());
+            
+            return result;
+            
+        } catch (Exception e) {
+            log.error("查询教学资源失败", e);
+            throw new RuntimeException("查询教学资源失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分页查询教学资源 - 旧版本保持兼容
      */
     public Map<String, Object> getResources(ResourceQueryDTO queryDTO, Pageable pageable, Integer userId) {
         try {
@@ -430,7 +496,7 @@ public class ResourceService {
     /**
      * 获取资源下载URL
      */
-    public String getResourceDownloadUrl(String resourceId, Integer userId) {
+    public Map<String, Object> getResourceDownloadUrl(String resourceId, Integer userId) {
         try {
             TeachingResource resource = teachingResourceMapper.selectById(resourceId);
             if (resource == null) {
@@ -441,7 +507,14 @@ public class ResourceService {
                 throw new RuntimeException("无权访问该资源");
             }
             
-            return localFileUtil.generateUrl(resource.getFilePath());
+            String downloadUrl = localFileUtil.generateUrl(resource.getFilePath());
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("downloadUrl", downloadUrl);
+            result.put("fileName", resource.getOriginalName());
+            result.put("expiresAt", LocalDateTime.now().plusMinutes(30).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            
+            return result;
             
         } catch (Exception e) {
             log.error("获取资源下载URL失败", e);
