@@ -121,7 +121,8 @@ create table knowledge_base(
                                progress int default 0 comment '进度百分比',
                                resource_count int default 0 comment '资源数量',
                                chunk_count int default 0 comment '分块数量',
-                               message varchar(500) comment '状态消息',
+                               document_count int default 0 comment '文档数量（兼容字段）',
+                               message text comment '状态消息',
                                user_id int not null comment '创建者ID',
                                created_at timestamp default current_timestamp comment '创建时间',
                                updated_at timestamp default current_timestamp on update current_timestamp comment '更新时间',
@@ -146,7 +147,4 @@ create table knowledge_base_resources(
                                         index idx_resource_id (resource_id)
 ) default charset = utf8mb4 comment = "知识库资源关联表";
 
-ALTER TABLE teaching_resources
-    ADD COLUMN file_path VARCHAR(500) COMMENT '文件存储路径';
 
-alter table teaching_resources drop column oss_key;

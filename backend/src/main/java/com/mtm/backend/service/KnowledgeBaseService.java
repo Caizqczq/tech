@@ -70,7 +70,8 @@ public class KnowledgeBaseService {
             knowledgeBase.setProgress(0);
             knowledgeBase.setResourceCount(resources.size());
             knowledgeBase.setChunkCount(0);
-            knowledgeBase.setMessage("知识库构建任务已启动");
+            knowledgeBase.setDocumentCount(0);
+            knowledgeBase.setMessage(truncateMessage("知识库构建任务已启动"));
             knowledgeBase.setUserId(userId);
             knowledgeBase.setCreatedAt(new Date());
             knowledgeBase.setUpdatedAt(new Date());
@@ -213,7 +214,8 @@ public class KnowledgeBaseService {
             knowledgeBase.setStatus("completed");
             knowledgeBase.setProgress(100);
             knowledgeBase.setChunkCount(allDocuments.size());
-            knowledgeBase.setMessage("知识库构建完成");
+            knowledgeBase.setDocumentCount(allDocuments.size()); // 设置文档数量（兼容字段）
+            knowledgeBase.setMessage(truncateMessage("知识库构建完成"));
             knowledgeBase.setCompletedAt(new Date());
             knowledgeBase.setUpdatedAt(new Date());
             knowledgeBaseMapper.updateById(knowledgeBase);
@@ -270,18 +272,46 @@ public class KnowledgeBaseService {
         KnowledgeBase knowledgeBase = new KnowledgeBase();
         knowledgeBase.setId(knowledgeBaseId);
         knowledgeBase.setProgress(progress);
-        knowledgeBase.setMessage(message);
+        knowledgeBase.setMessage(truncateMessage(message));
         knowledgeBase.setUpdatedAt(new Date());
         knowledgeBaseMapper.updateById(knowledgeBase);
     }
-    
+
     private void updateKnowledgeBaseStatus(String knowledgeBaseId, String status, String message) {
+        // 记录完整的错误信息到日志中
+        if ("failed".equals(status) && message.length() > 490) {
+            log.error("知识库构建失败，完整错误信息: {}", message);
+        }
+
         KnowledgeBase knowledgeBase = new KnowledgeBase();
         knowledgeBase.setId(knowledgeBaseId);
         knowledgeBase.setStatus(status);
-        knowledgeBase.setMessage(message);
+        knowledgeBase.setMessage(truncateMessage(message));
         knowledgeBase.setUpdatedAt(new Date());
         knowledgeBaseMapper.updateById(knowledgeBase);
+    }
+
+    /**
+     * 截断消息以适应数据库字段长度限制
+     * @param message 原始消息
+     * @return 截断后的消息
+     */
+    private String truncateMessage(String message) {
+        if (message == null) {
+            return null;
+        }
+
+        final int MAX_LENGTH = 490; // 留10字符缓冲
+
+        if (message.length() <= MAX_LENGTH) {
+            return message;
+        }
+
+        // 截断并添加省略号
+        String truncated = message.substring(0, MAX_LENGTH - 3) + "...";
+        log.warn("消息被截断，原长度: {}, 截断后长度: {}", message.length(), truncated.length());
+
+        return truncated;
     }
     
     private KnowledgeBaseListVO convertToKnowledgeBaseListVO(KnowledgeBase knowledgeBase) {
