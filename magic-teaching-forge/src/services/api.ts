@@ -594,6 +594,8 @@ class ApiService {
   async createKnowledgeBase(params: {
     name: string;
     description: string;
+    subject: string;
+    courseLevel: string;
     resourceIds: string[];
   }): Promise<{
     knowledgeBaseId: string;
@@ -633,7 +635,7 @@ class ApiService {
     return this.request(`/resources/knowledge-base/${knowledgeBaseId}/status`);
   }
 
-  async getKnowledgeBases(page: number = 1, size: number = 10): Promise<{
+  async getKnowledgeBases(page: number = 0, size: number = 10): Promise<{
     knowledgeBases: {
       knowledgeBaseId: string;
       name: string;
@@ -653,7 +655,22 @@ class ApiService {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('size', size.toString());
-    return this.request(`/resources/knowledge-base?${params.toString()}`);
+    
+    const response = await this.request<{
+      content: any[];
+      totalElements: number;
+    }>(`/resources/knowledge-base?${params.toString()}`);
+    
+    // 转换后端返回的数据结构为前端期望的格式
+    return {
+      knowledgeBases: response.content || [],
+      pagination: {
+        page: page,
+        size: size,
+        total: response.totalElements || 0,
+        totalPages: Math.ceil((response.totalElements || 0) / size)
+      }
+    };
   }
 
   async ragQuery(knowledgeBaseId: string, query: string, topK: number = 5): Promise<{

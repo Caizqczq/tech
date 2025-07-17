@@ -409,10 +409,9 @@ const AIGeneration = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="undergraduate">本科生</SelectItem>
+                            <SelectItem value="undergraduate">本科</SelectItem>
                             <SelectItem value="graduate">研究生</SelectItem>
-                            <SelectItem value="high_school">高中</SelectItem>
-                            <SelectItem value="middle_school">初中</SelectItem>
+                            <SelectItem value="doctoral">博士</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -519,10 +518,9 @@ const AIGeneration = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="undergraduate">🎓 本科生</SelectItem>
+                            <SelectItem value="undergraduate">🎓 本科</SelectItem>
                             <SelectItem value="graduate">👨‍🎓 研究生</SelectItem>
-                            <SelectItem value="high_school">📚 高中</SelectItem>
-                            <SelectItem value="middle_school">📖 初中</SelectItem>
+                            <SelectItem value="doctoral">🏆 博士</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -628,10 +626,9 @@ const AIGeneration = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="undergraduate">🎓 本科生</SelectItem>
+                            <SelectItem value="undergraduate">🎓 本科</SelectItem>
                             <SelectItem value="graduate">👨‍🎓 研究生</SelectItem>
-                            <SelectItem value="high_school">📚 高中</SelectItem>
-                            <SelectItem value="middle_school">📖 初中</SelectItem>
+                            <SelectItem value="doctoral">🏆 博士</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

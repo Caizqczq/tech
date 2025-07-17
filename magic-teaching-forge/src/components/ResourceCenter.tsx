@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import {
   Database,
@@ -134,7 +136,7 @@ const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const errorMessage: QAMessage = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
@@ -146,7 +148,7 @@ const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
       
       toast({
         title: "查询失败",
-        description: error.message || "智能问答服务暂时不可用",
+        description: (error instanceof Error ? error.message : String(error)) || "智能问答服务暂时不可用",
         variant: "destructive",
       });
     } finally {
@@ -183,7 +185,7 @@ const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
               <SelectValue placeholder="请选择知识库" />
             </SelectTrigger>
             <SelectContent>
-              {knowledgeBases.filter(kb => kb.status === 'ready').map((kb) => (
+              {Array.isArray(knowledgeBases) && knowledgeBases.filter(kb => kb.status === 'ready').map((kb) => (
                 <SelectItem key={kb.id || kb.knowledgeBaseId} value={kb.id || kb.knowledgeBaseId}>
                   {kb.name} ({kb.resourceCount || 0} 个资源)
                 </SelectItem>
@@ -311,6 +313,16 @@ const ResourceCenter: React.FC = () => {
     totalPages: 0
   });
 
+  // 创建知识库对话框状态
+  const [createKbDialogOpen, setCreateKbDialogOpen] = useState(false);
+  const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [newKbForm, setNewKbForm] = useState({
+    name: '',
+    description: '',
+    subject: '',
+    courseLevel: ''
+  });
+
   // 当tab改变时更新URL
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
@@ -351,11 +363,17 @@ const ResourceCenter: React.FC = () => {
 
   // 获取知识库列表
   const fetchKnowledgeBases = async () => {
+    setLoading(true);
     try {
       const response = await apiService.getKnowledgeBases();
-      setKnowledgeBases(response || []);
+      // 修复：正确提取knowledgeBases数组
+      setKnowledgeBases(response?.knowledgeBases || []);
     } catch (error) {
       console.error('获取知识库失败:', error);
+      // 修复：错误情况下设置为空数组
+      setKnowledgeBases([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -379,16 +397,79 @@ const ResourceCenter: React.FC = () => {
   };
 
   // 创建知识库
-  const handleCreateKnowledgeBase = async (name: string, description: string, resourceIds: string[]) => {
-    try {
-      await apiService.createKnowledgeBase({
-        name,
-        description,
-        resourceIds
+  const handleCreateKnowledgeBase = async () => {
+    if (!newKbForm.name.trim()) {
+      toast({
+        title: "请填写知识库名称",
+        variant: "destructive",
       });
-      await fetchKnowledgeBases(); // 刷新知识库列表
-    } catch (error) {
+      return;
+    }
+
+    if (!newKbForm.subject.trim()) {
+      toast({
+        title: "请选择学科领域",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newKbForm.courseLevel.trim()) {
+      toast({
+        title: "请选择课程层次",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedResources.length === 0) {
+      toast({
+        title: "请选择至少一个资源",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await apiService.createKnowledgeBase({
+        name: newKbForm.name,
+        description: newKbForm.description,
+        subject: newKbForm.subject,
+        courseLevel: newKbForm.courseLevel,
+        resourceIds: selectedResources
+      });
+      
+      toast({
+        title: "创建成功",
+        description: `知识库 "${newKbForm.name}" 已创建`,
+      });
+
+      // 重置表单和关闭对话框
+      setNewKbForm({ name: '', description: '', subject: '', courseLevel: '' });
+      setSelectedResources([]);
+      setCreateKbDialogOpen(false);
+      
+      // 刷新知识库列表
+      await fetchKnowledgeBases();
+    } catch (error: unknown) {
       console.error('创建知识库失败:', error);
+      toast({
+        title: "创建失败",
+        description: (error instanceof Error ? error.message : String(error)) || "创建知识库时发生错误",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 处理资源选择
+  const handleResourceSelect = (resourceId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedResources(prev => [...prev, resourceId]);
+    } else {
+      setSelectedResources(prev => prev.filter(id => id !== resourceId));
     }
   };
 
@@ -789,8 +870,24 @@ const ResourceCenter: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="knowledge" className="space-y-6">
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
+          
+          {!loading && (!Array.isArray(knowledgeBases) || knowledgeBases.length === 0) && (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Brain className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">暂无知识库</h3>
+              <p className="text-gray-600 dark:text-gray-400">创建您的第一个知识库开始使用智能问答功能</p>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {knowledgeBases.map((kb) => (
+            {Array.isArray(knowledgeBases) && knowledgeBases.map((kb) => (
               <Card key={kb.id || kb.knowledgeBaseId} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -846,10 +943,153 @@ const ResourceCenter: React.FC = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">创建知识库</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">将相关资源组织成知识库，支持智能问答</p>
-                <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl">
-                  <Plus className="h-4 w-4 mr-2" />
-                  创建知识库
-                </Button>
+                
+                <Dialog open={createKbDialogOpen} onOpenChange={setCreateKbDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl"
+                      onClick={() => {
+                        setCreateKbDialogOpen(true);
+                        // 确保有资源数据可供选择
+                        if (resources.length === 0) {
+                          fetchResources();
+                        }
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      创建知识库
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>创建知识库</DialogTitle>
+                      <DialogDescription>
+                        选择资源创建知识库，支持智能问答功能
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-6">
+                      {/* 知识库基本信息 */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="kb-name">知识库名称 *</Label>
+                          <Input
+                            id="kb-name"
+                            placeholder="请输入知识库名称"
+                            value={newKbForm.name}
+                            onChange={(e) => setNewKbForm(prev => ({ ...prev, name: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="kb-desc">描述信息</Label>
+                          <Input
+                            id="kb-desc"
+                            placeholder="请输入描述信息（可选）"
+                            value={newKbForm.description}
+                            onChange={(e) => setNewKbForm(prev => ({ ...prev, description: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="kb-subject">学科领域 *</Label>
+                          <Select value={newKbForm.subject} onValueChange={(value) => setNewKbForm(prev => ({ ...prev, subject: value }))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="请选择学科领域" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="mathematics">数学</SelectItem>
+                              <SelectItem value="physics">物理</SelectItem>
+                              <SelectItem value="chemistry">化学</SelectItem>
+                              <SelectItem value="biology">生物</SelectItem>
+                              <SelectItem value="chinese">语文</SelectItem>
+                              <SelectItem value="english">英语</SelectItem>
+                              <SelectItem value="history">历史</SelectItem>
+                              <SelectItem value="geography">地理</SelectItem>
+                              <SelectItem value="politics">政治</SelectItem>
+                              <SelectItem value="computer">计算机</SelectItem>
+                              <SelectItem value="other">其他</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="kb-level">课程层次 *</Label>
+                          <Select value={newKbForm.courseLevel} onValueChange={(value) => setNewKbForm(prev => ({ ...prev, courseLevel: value }))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="请选择课程层次" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="undergraduate">本科</SelectItem>
+                              <SelectItem value="graduate">研究生</SelectItem>
+                              <SelectItem value="doctoral">博士</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {/* 资源选择 */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-medium">选择资源</Label>
+                          <Badge variant="secondary">
+                            已选择 {selectedResources.length} 个资源
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-60 overflow-y-auto border rounded-lg p-4">
+                          {Array.isArray(resources) && resources.map((resource) => (
+                            <div key={resource.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                              <Checkbox
+                                id={`resource-${resource.id}`}
+                                checked={selectedResources.includes(resource.id)}
+                                onCheckedChange={(checked) => handleResourceSelect(resource.id, !!checked)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <label
+                                  htmlFor={`resource-${resource.id}`}
+                                  className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer line-clamp-2"
+                                >
+                                  {resource.title}
+                                </label>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {resource.size} • {resource.uploadDate}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {(!Array.isArray(resources) || resources.length === 0) && (
+                            <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                              <Database className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p>暂无可用资源，请先上传资源</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex justify-end space-x-3 pt-4 border-t">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setCreateKbDialogOpen(false);
+                            setNewKbForm({ name: '', description: '', subject: '', courseLevel: '' });
+                            setSelectedResources([]);
+                          }}
+                        >
+                          取消
+                        </Button>
+                        <Button 
+                          onClick={handleCreateKnowledgeBase}
+                          disabled={loading || !newKbForm.name.trim() || !newKbForm.subject.trim() || !newKbForm.courseLevel.trim() || selectedResources.length === 0}
+                          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                        >
+                          {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          创建知识库
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           </div>
