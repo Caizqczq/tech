@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from '@/hooks/use-toast';
 import {
   Database,
   FileText,
@@ -37,7 +40,8 @@ import {
   FileCheck,
   Brain,
   MessageSquare,
-  Share2
+  Share2,
+  Loader2
 } from 'lucide-react';
 import { UploadDialog } from './UploadDialog';
 
@@ -64,6 +68,224 @@ interface KnowledgeBase {
   createdAt: string;
   lastUpdated: string;
 }
+
+interface QAMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  sources?: {
+    resourceId: string;
+    fileName: string;
+    relevantContent: string;
+    similarity: number;
+  }[];
+}
+
+interface QAInterfaceProps {
+  knowledgeBases: KnowledgeBase[];
+}
+
+const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
+  const [messages, setMessages] = useState<QAMessage[]>([]);
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSubmitQuestion = async () => {
+    if (!currentQuestion.trim() || !selectedKnowledgeBase) {
+      toast({
+        title: "请填写必要信息",
+        description: "请选择知识库并输入问题",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const userMessage: QAMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: currentQuestion,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setCurrentQuestion('');
+    setIsLoading(true);
+
+    try {
+      const response = await apiService.ragQuery(selectedKnowledgeBase, currentQuestion, 5);
+      
+      const assistantMessage: QAMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: response.answer,
+        timestamp: new Date().toISOString(),
+        sources: response.sources,
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error: any) {
+      const errorMessage: QAMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: '抱歉，我无法回答这个问题。请稍后再试。',
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+      
+      toast({
+        title: "查询失败",
+        description: error.message || "智能问答服务暂时不可用",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const quickQuestions = [
+    "这个主题的核心概念是什么？",
+    "有哪些相关的实例和应用？",
+    "这个知识点有什么难点和重点？",
+    "有什么学习建议和方法？"
+  ];
+
+  return (
+    <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <MessageSquare className="h-5 w-5" />
+          <span>智能问答</span>
+        </CardTitle>
+        <CardDescription>
+          基于知识库的智能问答系统，快速获取准确答案
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 知识库选择 */}
+        <div className="flex items-center space-x-4">
+          <Label htmlFor="kb-select" className="text-sm font-medium whitespace-nowrap">
+            选择知识库:
+          </Label>
+          <Select value={selectedKnowledgeBase} onValueChange={setSelectedKnowledgeBase}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="请选择知识库" />
+            </SelectTrigger>
+            <SelectContent>
+              {knowledgeBases.filter(kb => kb.status === 'ready').map((kb) => (
+                <SelectItem key={kb.id || kb.knowledgeBaseId} value={kb.id || kb.knowledgeBaseId}>
+                  {kb.name} ({kb.resourceCount || 0} 个资源)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 消息历史 */}
+        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 h-64 overflow-y-auto">
+          {messages.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">智能问答助手</h3>
+              <p className="text-gray-600 dark:text-gray-400">基于您的知识库内容，为您提供准确、详细的答案</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                    message.type === 'user' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                  }`}>
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">参考来源:</div>
+                        <div className="space-y-1">
+                          {message.sources.map((source, index) => (
+                            <div key={index} className="text-xs bg-gray-100 dark:bg-gray-700 rounded px-2 py-1">
+                              <div className="font-medium">{source.fileName}</div>
+                              <div className="text-gray-600 dark:text-gray-400 truncate">
+                                {source.relevantContent}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white dark:bg-gray-800 rounded-lg px-4 py-2 flex items-center space-x-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">正在思考...</span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* 快速问题 */}
+        <div className="flex flex-wrap gap-2">
+          {quickQuestions.map((question, index) => (
+            <Button
+              key={index}
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentQuestion(question)}
+              className="text-xs"
+            >
+              {question}
+            </Button>
+          ))}
+        </div>
+
+        {/* 问题输入 */}
+        <div className="flex items-center space-x-2">
+          <Input
+            placeholder="请输入您的问题..."
+            value={currentQuestion}
+            onChange={(e) => setCurrentQuestion(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmitQuestion();
+              }
+            }}
+            className="flex-1 bg-white/80 dark:bg-gray-700/80 border-white/30 dark:border-gray-600/30 rounded-xl"
+            disabled={isLoading}
+          />
+          <Button 
+            onClick={handleSubmitQuestion}
+            disabled={!currentQuestion.trim() || !selectedKnowledgeBase || isLoading}
+            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            提问
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const ResourceCenter: React.FC = () => {
   const location = useLocation();
@@ -634,41 +856,7 @@ const ResourceCenter: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="qa" className="space-y-6">
-          <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MessageSquare className="h-5 w-5" />
-                <span>智能问答</span>
-              </CardTitle>
-              <CardDescription>
-                基于知识库的智能问答系统，快速获取准确答案
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="请输入您的问题..."
-                      className="bg-white/80 dark:bg-gray-700/80 border-white/30 dark:border-gray-600/30 rounded-xl"
-                    />
-                  </div>
-                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    提问
-                  </Button>
-                </div>
-                
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-6 text-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900 dark:to-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">智能问答助手</h3>
-                  <p className="text-gray-600 dark:text-gray-400">基于您的知识库内容，为您提供准确、详细的答案</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <QAInterface knowledgeBases={knowledgeBases} />
         </TabsContent>
       </Tabs>
     </div>

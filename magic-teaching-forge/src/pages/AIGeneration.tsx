@@ -102,8 +102,8 @@ const AIGeneration = () => {
         description: "正在为您生成PPT，请稍候...",
       });
       
-      // 模拟进度更新
-      simulateProgress(response.taskId);
+      // 开始检查任务进度
+      checkTaskProgress(response.taskId);
     } catch (error: any) {
       toast({
         title: "生成失败",
@@ -141,7 +141,7 @@ const AIGeneration = () => {
         description: "正在为您生成习题，请稍候...",
       });
       
-      simulateProgress(response.taskId);
+      checkTaskProgress(response.taskId);
     } catch (error: any) {
       toast({
         title: "生成失败",
@@ -178,7 +178,7 @@ const AIGeneration = () => {
         description: "正在为您生成讲解文本，请稍候...",
       });
       
-      simulateProgress(response.taskId);
+      checkTaskProgress(response.taskId);
     } catch (error: any) {
       toast({
         title: "生成失败",
@@ -188,28 +188,63 @@ const AIGeneration = () => {
     }
   };
 
-  const simulateProgress = (taskId: string) => {
-    const interval = setInterval(() => {
-      setTasks(prev => prev.map(task => {
-        if (task.id === taskId && task.status === 'processing') {
-          const newProgress = Math.min(task.progress + Math.random() * 20, 100);
-          if (newProgress >= 100) {
-            clearInterval(interval);
-            return {
-              ...task,
-              status: 'completed',
-              progress: 100,
-              output: {
-                downloadUrl: `/api/download/${taskId}`,
-                previewUrl: `/api/preview/${taskId}`
-              }
-            };
+  const checkTaskProgress = async (taskId: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await apiService.getTaskStatus(taskId);
+        
+        setTasks(prev => prev.map(task => {
+          if (task.id === taskId) {
+            if (response.status === 'completed') {
+              clearInterval(interval);
+              return {
+                ...task,
+                status: 'completed',
+                progress: 100,
+                output: response.result
+              };
+            } else if (response.status === 'failed') {
+              clearInterval(interval);
+              return {
+                ...task,
+                status: 'failed',
+                progress: 0,
+                error: response.error || '任务执行失败'
+              };
+            } else {
+              return {
+                ...task,
+                status: 'processing',
+                progress: response.progress || task.progress
+              };
+            }
           }
-          return { ...task, progress: newProgress };
-        }
-        return task;
-      }));
-    }, 1000);
+          return task;
+        }));
+      } catch (error) {
+        console.error('检查任务状态失败:', error);
+        // 如果API调用失败，则回退到模拟进度
+        setTasks(prev => prev.map(task => {
+          if (task.id === taskId && task.status === 'processing') {
+            const newProgress = Math.min(task.progress + Math.random() * 20, 100);
+            if (newProgress >= 100) {
+              clearInterval(interval);
+              return {
+                ...task,
+                status: 'completed',
+                progress: 100,
+                output: {
+                  downloadUrl: `/api/download/${taskId}`,
+                  previewUrl: `/api/preview/${taskId}`
+                }
+              };
+            }
+            return { ...task, progress: newProgress };
+          }
+          return task;
+        }));
+      }
+    }, 2000); // 每2秒检查一次
   };
 
   const getTaskIcon = (type: string) => {
@@ -289,7 +324,7 @@ const AIGeneration = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 生成表单 */}
           <div className="lg:col-span-2">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/50 shadow-xl">
@@ -780,6 +815,7 @@ const AIGeneration = () => {
             </div>
           </div>
         </div>
+      </div>
       </main>
     </div>
   );

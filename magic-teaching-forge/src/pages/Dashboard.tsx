@@ -246,7 +246,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button 
-                  onClick={() => navigate('/create/course')}
+                  onClick={() => navigate('/create')}
                   variant="secondary" 
                   className="w-full bg-white/20 hover:bg-white/30 text-white border-0"
                 >
@@ -254,7 +254,7 @@ const Dashboard = () => {
                   新建课程
                 </Button>
                 <Button 
-                  onClick={() => navigate('/create/lesson')}
+                  onClick={() => navigate('/create')}
                   variant="secondary" 
                   className="w-full bg-white/20 hover:bg-white/30 text-white border-0"
                 >
@@ -262,7 +262,7 @@ const Dashboard = () => {
                   AI教案
                 </Button>
                 <Button 
-                  onClick={() => navigate('/create/interactive')}
+                  onClick={() => navigate('/create')}
                   variant="secondary" 
                   className="w-full bg-white/20 hover:bg-white/30 text-white border-0"
                 >

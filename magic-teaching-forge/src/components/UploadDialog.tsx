@@ -1,24 +1,38 @@
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import React, { useState, useCallback } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, FileText, Music, Files } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { useDropzone } from 'react-dropzone';
+import { Upload, FileText, Music, Files, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 
+interface UploadedFile {
+  id: string;
+  file: File;
+  type: 'document' | 'audio' | 'batch';
+  status: 'uploading' | 'processing' | 'completed' | 'error';
+  progress: number;
+  result?: any;
+  error?: string;
+}
+
 interface UploadDialogProps {
-  onUploadSuccess: () => void;
+  onUploadSuccess?: () => void;
 }
 
 export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) => {
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState('document');
-  // toast is imported directly from hooks
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const [documentForm, setDocumentForm] = useState({
     file: null as File | null,
@@ -61,9 +75,28 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
       return;
     }
 
+    const uploadFile: UploadedFile = {
+      id: Math.random().toString(36).substr(2, 9),
+      file: documentForm.file,
+      type: 'document',
+      status: 'uploading',
+      progress: 0,
+    };
+
+    setUploadedFiles(prev => [...prev, uploadFile]);
     setUploading(true);
+
+    // 模拟上传进度
+    const progressInterval = setInterval(() => {
+      setUploadedFiles(prev => prev.map(f => 
+        f.id === uploadFile.id && f.status === 'uploading'
+          ? { ...f, progress: Math.min(f.progress + 10, 90) }
+          : f
+      ));
+    }, 200);
+
     try {
-      await apiService.uploadDocument(documentForm.file, {
+      const result = await apiService.uploadDocument(documentForm.file, {
         subject: documentForm.subject,
         courseLevel: documentForm.courseLevel,
         resourceType: documentForm.resourceType,
@@ -74,15 +107,32 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
         autoExtractKeywords: documentForm.autoExtractKeywords,
       });
 
+      clearInterval(progressInterval);
+      
+      setUploadedFiles(prev => prev.map(f => 
+        f.id === uploadFile.id 
+          ? { ...f, status: 'completed', progress: 100, result }
+          : f
+      ));
+
       toast({
         title: "上传成功",
         description: "文档已成功上传并处理",
       });
 
-      setOpen(false);
-      onUploadSuccess();
+      if (onUploadSuccess) {
+        onUploadSuccess();
+      }
       resetForms();
     } catch (error: any) {
+      clearInterval(progressInterval);
+      
+      setUploadedFiles(prev => prev.map(f => 
+        f.id === uploadFile.id 
+          ? { ...f, status: 'error', error: error.message }
+          : f
+      ));
+
       toast({
         title: "上传失败",
         description: error.message || "文档上传失败",
@@ -194,6 +244,36 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
     });
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'uploading':
+      case 'processing':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const removeFile = (fileId: string) => {
+    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const clearAllFiles = () => {
+    setUploadedFiles([]);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    // 清理上传文件列表
+    setTimeout(() => {
+      setUploadedFiles([]);
+    }, 300);
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -205,6 +285,9 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>上传教学资源</DialogTitle>
+          <DialogDescription>
+            上传文档、音频等教学资源，系统将自动处理并添加到资源库中
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={uploadType} onValueChange={setUploadType}>
@@ -419,6 +502,64 @@ export const UploadDialog: React.FC<UploadDialogProps> = ({ onUploadSuccess }) =
             </Button>
           </TabsContent>
         </Tabs>
+
+        {/* 上传进度显示区域 */}
+        {uploadedFiles.length > 0 && (
+          <Card className="mt-6">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">上传进度</h3>
+                <Button variant="outline" size="sm" onClick={clearAllFiles}>
+                  清空全部
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {uploadedFiles.map((file) => (
+                  <div key={file.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="flex-shrink-0">
+                      {getStatusIcon(file.status)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{file.file.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {file.type === 'document' && '文档'}
+                        {file.type === 'audio' && '音频'}
+                        {file.type === 'batch' && '批量'}
+                        {' • '}
+                        {(file.file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                      {(file.status === 'uploading' || file.status === 'processing') && (
+                        <Progress value={file.progress} className="mt-1 h-2" />
+                      )}
+                      {file.error && (
+                        <p className="text-xs text-red-500 mt-1">{file.error}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={
+                        file.status === 'completed' ? 'default' : 
+                        file.status === 'error' ? 'destructive' : 'secondary'
+                      }>
+                        {file.status === 'uploading' && '上传中'}
+                        {file.status === 'processing' && '处理中'}
+                        {file.status === 'completed' && '完成'}
+                        {file.status === 'error' && '失败'}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFile(file.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </DialogContent>
     </Dialog>
   );

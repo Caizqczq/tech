@@ -216,7 +216,7 @@ const SmartChat = () => {
         const assistantMessage: ConversationMessage = {
           messageId: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: response.content, // 使用正确的字段名
+          content: response.response, // 修正字段名
           timestamp: new Date().toISOString()
         };
         
