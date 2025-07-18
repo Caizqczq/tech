@@ -232,25 +232,25 @@ const MainLayout: React.FC = () => {
       {/* Top Navigation Bar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center h-16">
             {/* Logo */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-4 mr-12">
               <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Sparkles className="h-6 w-6 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Sparkles className="h-7 w-7 text-white" />
                 </div>
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full animate-pulse" />
               </div>
-              <div className="hidden sm:block">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white drop-shadow-sm">
+              <div className="hidden sm:block min-w-0 flex-shrink-0">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white drop-shadow-sm whitespace-nowrap">
                   AI教学设计平台
                 </h1>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">智能化教育解决方案</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap">智能化教育解决方案</p>
               </div>
             </div>
 
             {/* Desktop Navigation */}
-             <div className="hidden lg:flex items-center space-x-2">
+            <div className="hidden lg:flex items-center space-x-2 flex-1">
                {navigationItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 const hasSubItems = item.subItems && item.subItems.length > 0;
@@ -322,7 +322,7 @@ const MainLayout: React.FC = () => {
             </div>
 
             {/* Right Side Actions */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 ml-auto">
               {/* Search */}
               <div className="hidden md:block relative">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
-import DashboardHeader from '@/components/dashboard/DashboardHeader';
 
 interface GenerationTask {
   id: string;
@@ -267,8 +266,6 @@ const AIGeneration = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <DashboardHeader />
-      
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* 页面标题区域 */}
         <div className="mb-10">

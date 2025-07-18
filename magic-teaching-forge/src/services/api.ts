@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8082
 
 class ApiService {
   private getToken(): string | null {
-    return localStorage.getItem('token'); // 确保使用正确的key
+    return localStorage.getItem('token');
   }
 
   private getHeaders(): Record<string, string> {
@@ -42,12 +42,10 @@ class ApiService {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
       
       if (!response.ok) {
-        // 处理401错误
+        // 简化401处理：只在明确的登出接口或用户主动登出时才清除token
         if (response.status === 401) {
-          localStorage.removeItem('token');
-          // 使用window.location.replace来避免回退到需要认证的页面
-          window.location.replace('/login');
-          throw new Error('登录已过期，请重新登录');
+          // 不自动跳转，让用户看到错误信息后自己决定
+          console.warn('Authentication failed, JWT may be expired');
         }
         
         // 尝试解析错误响应
@@ -115,7 +113,7 @@ class ApiService {
   }
 
   async streamChat(query: string = '你好', chatId: string = '1'): Promise<Response> {
-    const token = localStorage.getItem('token'); // 改为 'token'
+    const token = this.getToken();
     const params = new URLSearchParams();
     params.append('query', query);
     params.append('chat-id', chatId);
@@ -278,7 +276,7 @@ class ApiService {
       topic?: string;
     };
   }): Promise<Response> {
-    const token = localStorage.getItem('token'); // 改为 'token'
+    const token = this.getToken();
     
     return fetch(`${API_BASE_URL}/chat/assistant/stream`, {
       method: 'POST',
@@ -399,9 +397,7 @@ class ApiService {
 
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem('token');
-          window.location.href = '/login';
-          throw new Error('登录已过期，请重新登录');
+          console.warn('Upload authentication failed, JWT may be expired');
         }
         
         let errorMessage = 'Upload failed';
@@ -704,7 +700,7 @@ class ApiService {
   }
 
   async ragStreamQuery(knowledgeBaseId: string, query: string, topK: number = 5): Promise<Response> {
-    const token = localStorage.getItem('token');
+    const token = this.getToken();
     return fetch(`${API_BASE_URL}/resources/qa/stream`, {
       method: 'POST',
       headers: {

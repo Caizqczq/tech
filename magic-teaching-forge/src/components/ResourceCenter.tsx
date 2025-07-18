@@ -517,21 +517,27 @@ const ResourceCenter: React.FC = () => {
   }, [activeTab]);
 
   const resourceCategories = [
-    { id: 'all', label: '全部资源', icon: Database, count: 156, color: 'from-blue-500 to-purple-600' },
-    { id: 'lesson_plan', label: '教案课件', icon: FileText, count: 45, color: 'from-green-500 to-teal-600' },
-    { id: 'paper', label: '学术论文', icon: BookOpen, count: 32, color: 'from-pink-500 to-rose-600' },
-    { id: 'textbook', label: '教材资料', icon: Archive, count: 28, color: 'from-purple-500 to-indigo-600' },
-    { id: 'lecture', label: '音频讲座', icon: Music, count: 23, color: 'from-orange-500 to-red-600' },
-    { id: 'exercise', label: '练习题库', icon: PenTool, count: 28, color: 'from-cyan-500 to-blue-600' }
+    { id: 'all', label: '全部资源', icon: Database, count: pagination.totalElements, color: 'from-blue-500 to-purple-600' },
+    { id: 'lesson_plan', label: '教案课件', icon: FileText, count: resources.filter(r => r.type === 'lesson_plan').length, color: 'from-green-500 to-teal-600' },
+    { id: 'paper', label: '学术论文', icon: BookOpen, count: resources.filter(r => r.type === 'paper').length, color: 'from-pink-500 to-rose-600' },
+    { id: 'textbook', label: '教材资料', icon: Archive, count: resources.filter(r => r.type === 'textbook').length, color: 'from-purple-500 to-indigo-600' },
+    { id: 'lecture', label: '音频讲座', icon: Music, count: resources.filter(r => r.type === 'lecture').length, color: 'from-orange-500 to-red-600' },
+    { id: 'exercise', label: '练习题库', icon: PenTool, count: resources.filter(r => r.type === 'exercise').length, color: 'from-cyan-500 to-blue-600' }
   ];
 
   const resourceStats = {
-    totalResources: 156,
-    totalSize: '2.3 GB',
-    monthlyUploads: 23,
-    totalDownloads: 1247,
-    vectorizedResources: 142,
-    knowledgeBases: 8
+    totalResources: pagination.totalElements,
+    totalSize: '计算中...',
+    monthlyUploads: resources.filter(r => {
+      const uploadDate = new Date(r.uploadDate);
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      return uploadDate.getMonth() === currentMonth && uploadDate.getFullYear() === currentYear;
+    }).length,
+    totalDownloads: resources.reduce((sum, r) => sum + (r.downloads || 0), 0),
+    vectorizedResources: resources.filter(r => r.status === 'vectorized').length,
+    knowledgeBases: Array.isArray(knowledgeBases) ? knowledgeBases.length : 0
   };
 
   const getTypeIcon = (type: string) => {
@@ -581,8 +587,8 @@ const ResourceCenter: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Stats Overview - 简化版本 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -596,7 +602,7 @@ const ResourceCenter: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -610,21 +616,7 @@ const ResourceCenter: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl flex items-center justify-center">
-                <Download className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">总下载</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{resourceStats.totalDownloads}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
+
         <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -632,13 +624,13 @@ const ResourceCenter: React.FC = () => {
                 <Brain className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">已向量化</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{resourceStats.vectorizedResources}</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">知识库</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{resourceStats.knowledgeBases}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        
+
         <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -648,20 +640,6 @@ const ResourceCenter: React.FC = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">存储空间</p>
                 <p className="text-xl font-bold text-gray-900 dark:text-white">{resourceStats.totalSize}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center">
-                <Layers className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">知识库</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-white">{resourceStats.knowledgeBases}</p>
               </div>
             </div>
           </CardContent>
@@ -686,39 +664,31 @@ const ResourceCenter: React.FC = () => {
         </TabsList>
 
         <TabsContent value="resources" className="space-y-6">
-          {/* Category Filter */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {resourceCategories.map((category) => {
-              const IconComponent = category.icon;
-              return (
-                <Card 
-                  key={category.id}
-                  className={`cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl ${
-                    selectedCategory === category.id 
-                      ? 'ring-2 ring-indigo-500 bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-900/20' 
-                      : 'hover:bg-white/80 dark:hover:bg-gray-800/80'
-                  } bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30`}
-                  onClick={() => setSelectedCategory(category.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-10 h-10 bg-gradient-to-br ${category.color} rounded-xl flex items-center justify-center`}>
-                        <IconComponent className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {category.label}
-                        </p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white">
-                          {category.count}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {/* 简化的分类过滤器 */}
+          <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {resourceCategories.map((category) => {
+                  const IconComponent = category.icon;
+                  return (
+                    <Button
+                      key={category.id}
+                      variant={selectedCategory === category.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedCategory(category.id)}
+                      className="flex items-center space-x-2"
+                    >
+                      <IconComponent className="h-4 w-4" />
+                      <span>{category.label}</span>
+                      <span className="text-xs bg-gray-200 dark:bg-gray-700 px-1 rounded">
+                        {category.count}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Search and Controls */}
           <Card className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-white/30 dark:border-gray-700/30">

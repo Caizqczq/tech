@@ -11,7 +11,6 @@ import CreateWizard from "./pages/CreateWizard";
 import ProjectDetail from "./pages/ProjectDetail";
 import Analytics from "./pages/Analytics";
 import KnowledgeBase from "./pages/KnowledgeBase";
-import MaterialUpload from "./pages/MaterialUpload";
 import AIGeneration from "./pages/AIGeneration";
 import SmartChat from "./pages/SmartChat";
 import NotFound from "./pages/NotFound";
@@ -37,7 +36,6 @@ const App = () => (
               <Route path="project/demo" element={<ProjectDetail />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="knowledge" element={<KnowledgeBase />} />
-              <Route path="upload" element={<MaterialUpload />} />
               <Route path="ai-generation" element={<AIGeneration />} />
               <Route path="resource-center" element={<ResourceCenter />} />
               <Route path="chat" element={<SmartChat />} />

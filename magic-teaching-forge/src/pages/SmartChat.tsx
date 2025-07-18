@@ -30,7 +30,6 @@ import {
 } from 'lucide-react';
 import { apiService } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
-import DashboardHeader from '@/components/dashboard/DashboardHeader';
 import { ConversationMessage, ConversationDetail, ConversationItem } from '@/types/api';
 
 interface QuickQuestion {
@@ -376,8 +375,6 @@ const SmartChat = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      <DashboardHeader />
-      
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">智能对话助手</h1>

@@ -20,7 +20,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token'); // 改为 'token'
+    const token = localStorage.getItem('token');
     if (token) {
       getCurrentUser();
     } else {
@@ -34,7 +34,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(user);
     } catch (error) {
       console.error('获取用户信息失败:', error);
-      localStorage.removeItem('token'); // 改为 'token'
+      // 简化处理：不自动清除token，让JWT自然过期
+      // 用户可以通过重新登录来获取新的token
     } finally {
       setLoading(false);
     }
@@ -43,7 +44,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await apiService.login({ email, password });
-      localStorage.setItem('token', response.token); // 改为 'token'
+      // 简单存储token，JWT包含过期时间信息
+      localStorage.setItem('token', response.token);
       setUser(response.user);
       toast({
         title: "登录成功",
@@ -96,7 +98,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error('登出API调用失败:', error);
     } finally {
-      localStorage.removeItem('token'); // 改为 'token'
+      // 只在用户主动登出时清除token
+      localStorage.removeItem('token');
       setUser(null);
       toast({
         title: "已退出登录",
