@@ -16,6 +16,7 @@ import AIGeneration from "./pages/AIGeneration";
 import SmartChat from "./pages/SmartChat";
 import NotFound from "./pages/NotFound";
 import ResourceCenter from "@/components/ResourceCenter";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/login" element={<Login />} />
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />

@@ -12,20 +12,19 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface UserMapper {
 
-    int deleteByPrimaryKey(Long id);
-
+    /**
+     * 插入用户记录
+     */
     int insert(User record);
 
-    int insertSelective(User record);
-
+    /**
+     * 根据主键查询用户
+     */
     User selectByPrimaryKey(Integer id);
 
-    int updateByPrimaryKeySelective(User record);
-
-    int updateByPrimaryKey(User record);
-
+    /**
+     * 根据标识符（邮箱或用户名）查找用户
+     */
     User findByIdentifier(String identifier);
-
-
 
 }

@@ -32,6 +32,7 @@ public class ModelConfig {
     /**
      * 配置Redis VectorStore Bean
      * 基于Spring AI官方文档的标准配置方式
+     * 增加元数据字段支持用于过滤
      */
     @Bean
     public VectorStore vectorStore(JedisPooled jedisPooled) {
@@ -39,6 +40,14 @@ public class ModelConfig {
                 .indexName("teaching-resources")           // 与application.yml中的配置保持一致
                 .prefix("vector:")                         // 与application.yml中的配置保持一致
                 .initializeSchema(true)                    // 自动初始化Redis索引结构
+                .metadataFields(
+                    // 定义元数据字段以支持过滤
+                    RedisVectorStore.MetadataField.tag("knowledge_base_id"),
+                    RedisVectorStore.MetadataField.tag("resource_id"),
+                    RedisVectorStore.MetadataField.tag("subject"),
+                    RedisVectorStore.MetadataField.tag("course_level"),
+                    RedisVectorStore.MetadataField.tag("title")
+                )
                 .build();
     }
 

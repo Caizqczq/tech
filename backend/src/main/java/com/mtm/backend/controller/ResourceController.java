@@ -9,8 +9,8 @@ import com.mtm.backend.model.DTO.ResourceQueryDTO;
 import com.mtm.backend.model.VO.ResourceUploadVO;
 import com.mtm.backend.model.VO.ResourceDetailVO;
 import com.mtm.backend.model.VO.KnowledgeBaseVO;
-import com.mtm.backend.service.KnowledgeBaseService;
-import com.mtm.backend.service.RAGService;
+import com.mtm.backend.service.knowledge.KnowledgeBaseService;
+import com.mtm.backend.service.rag.RAGFacadeService;
 import com.mtm.backend.service.ResourceService;
 import com.mtm.backend.utils.ThreadLocalUtil;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +39,7 @@ public class ResourceController {
 
     private final ResourceService resourceService;
     private final KnowledgeBaseService knowledgeBaseService;
-    private final RAGService ragService;
+    private final RAGFacadeService ragFacadeService;
     
     private static final String[] ALLOWED_DOCUMENT_TYPES = {
         "application/pdf",
@@ -541,7 +541,8 @@ public class ResourceController {
                 queryDTO.setIncludeReferences(true);
             }
 
-            Object result = ragService.ragQuery(queryDTO, userId);
+            // 使用RAG门面服务
+            Object result = ragFacadeService.query(queryDTO, userId);
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
@@ -570,7 +571,7 @@ public class ResourceController {
                 queryDTO.setTopK(5);
             }
 
-            return ragService.ragQueryStream(queryDTO, userId);
+            return ragFacadeService.queryStream(queryDTO, userId);
 
         } catch (Exception e) {
             log.error("流式RAG问答失败", e);
@@ -659,46 +660,6 @@ public class ResourceController {
         } catch (Exception e) {
             log.error("获取资源统计失败", e);
             return ResponseEntity.status(500).body("获取统计失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 获取知识库列表
-     */
-    @GetMapping("/knowledge-bases")
-    public ResponseEntity<?> getKnowledgeBases() {
-        try {
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body("用户未登录");
-            }
-            
-            List<KnowledgeBaseVO> knowledgeBases = resourceService.getKnowledgeBases(userId);
-            return ResponseEntity.ok(knowledgeBases);
-            
-        } catch (Exception e) {
-            log.error("获取知识库列表失败", e);
-            return ResponseEntity.status(500).body("获取知识库列表失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 删除知识库
-     */
-    @DeleteMapping("/knowledge-base/{id}")
-    public ResponseEntity<?> deleteKnowledgeBase(@PathVariable String id) {
-        try {
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body("用户未登录");
-            }
-            
-            resourceService.deleteKnowledgeBase(id, userId);
-            return ResponseEntity.ok("知识库删除成功");
-            
-        } catch (Exception e) {
-            log.error("删除知识库失败", e);
-            return ResponseEntity.status(500).body("删除知识库失败: " + e.getMessage());
         }
     }
 }

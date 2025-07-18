@@ -563,52 +563,6 @@ public class ResourceService {
         }
     }
     
-    /**
-     * 获取知识库列表
-     */
-    public List<KnowledgeBaseVO> getKnowledgeBases(Integer userId) {
-        try {
-            QueryWrapper<KnowledgeBase> query = new QueryWrapper<>();
-            query.eq("user_id", userId);
-            query.orderByDesc("created_at");
-            
-            List<KnowledgeBase> knowledgeBases = knowledgeBaseMapper.selectList(query);
-            
-            return knowledgeBases.stream()
-                .map(this::convertToKnowledgeBaseVO)
-                .collect(Collectors.toList());
-                
-        } catch (Exception e) {
-            log.error("获取知识库列表失败", e);
-            throw new RuntimeException("获取知识库列表失败: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * 删除知识库
-     */
-    public void deleteKnowledgeBase(String knowledgeBaseId, Integer userId) {
-        try {
-            QueryWrapper<KnowledgeBase> query = new QueryWrapper<>();
-            query.eq("id", knowledgeBaseId);
-            query.eq("user_id", userId);
-            
-            KnowledgeBase knowledgeBase = knowledgeBaseMapper.selectOne(query);
-            if (knowledgeBase == null) {
-                throw new RuntimeException("知识库不存在或无权删除");
-            }
-            
-            vectorStore.delete(List.of(knowledgeBaseId));
-            knowledgeBaseMapper.deleteById(knowledgeBaseId);
-            
-            log.info("删除知识库成功，知识库ID：{}", knowledgeBaseId);
-            
-        } catch (Exception e) {
-            log.error("删除知识库失败", e);
-            throw new RuntimeException("删除知识库失败: " + e.getMessage());
-        }
-    }
-    
     // ============ 私有辅助方法 ============
     
     private ResourceUploadVO performSyncTranscription(MultipartFile file, TeachingResource resource, AudioUploadDTO uploadDTO) {

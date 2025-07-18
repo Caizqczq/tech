@@ -49,26 +49,6 @@ public class TaskController {
     }
     
     /**
-     * 取消任务
-     */
-    @DeleteMapping("/{taskId}")
-    public ResponseEntity<?> deleteTask(@PathVariable String taskId) {
-        try {
-            Integer userId = ThreadLocalUtil.get();
-            if (userId == null) {
-                return ResponseEntity.status(401).body("用户未登录");
-            }
-            
-            taskService.cancelTask(taskId, userId);
-            return ResponseEntity.ok("任务取消成功");
-            
-        } catch (Exception e) {
-            log.error("取消任务失败", e);
-            return ResponseEntity.status(500).body("取消任务失败: " + e.getMessage());
-        }
-    }
-    
-    /**
      * 创建统一的错误响应格式
      */
     private Map<String, Object> createErrorResponse(String message, String path) {

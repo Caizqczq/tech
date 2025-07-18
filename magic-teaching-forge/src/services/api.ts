@@ -45,7 +45,8 @@ class ApiService {
         // 处理401错误
         if (response.status === 401) {
           localStorage.removeItem('token');
-          window.location.href = '/login';
+          // 使用window.location.replace来避免回退到需要认证的页面
+          window.location.replace('/login');
           throw new Error('登录已过期，请重新登录');
         }
         

@@ -13,11 +13,6 @@ public interface TaskService {
     TaskStatusVO getTaskStatus(String taskId, Integer userId);
     
     /**
-     * 取消任务
-     */
-    void cancelTask(String taskId, Integer userId);
-    
-    /**
      * 创建新任务
      */
     String createTask(String taskType, Object taskData, Integer userId);

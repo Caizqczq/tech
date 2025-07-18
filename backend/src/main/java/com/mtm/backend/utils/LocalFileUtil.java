@@ -219,6 +219,38 @@ public class LocalFileUtil {
     }
     
     /**
+     * 读取文件字节内容
+     * @param filePath 本地文件路径
+     * @return 文件字节数组
+     * @throws IOException 读取失败时抛出异常
+     */
+    public byte[] readFileBytes(String filePath) throws IOException {
+        if (filePath == null || filePath.trim().isEmpty()) {
+            throw new IllegalArgumentException("文件路径不能为空");
+        }
+        
+        try {
+            Path fullPath = Paths.get(localFileConfig.getAbsoluteBasePath(), filePath);
+            
+            if (!Files.exists(fullPath)) {
+                throw new IllegalArgumentException("文件不存在: " + filePath);
+            }
+            
+            if (!Files.isRegularFile(fullPath)) {
+                throw new IllegalArgumentException("不是有效的文件: " + filePath);
+            }
+            
+            byte[] content = Files.readAllBytes(fullPath);
+            log.debug("成功读取文件内容: {}, 大小: {} bytes", filePath, content.length);
+            return content;
+            
+        } catch (IOException e) {
+            log.error("读取文件内容失败: {}, 错误信息: {}", filePath, e.getMessage(), e);
+            throw new IOException("读取文件内容失败: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * 从文件夹路径中提取资源类型
      * 例如: "documents/1/lesson_plan" -> "document"
      *      "audio/1/lecture" -> "audio"

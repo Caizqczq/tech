@@ -56,33 +56,6 @@ public class TaskServiceImpl implements TaskService {
     }
     
     @Override
-    public void cancelTask(String taskId, Integer userId) {
-        try {
-            String key = TASK_PREFIX + taskId;
-            Map<Object, Object> taskData = redisTemplate.opsForHash().entries(key);
-            
-            if (taskData.isEmpty()) {
-                throw new RuntimeException("任务不存在或已过期");
-            }
-            
-            // 验证任务所有者
-            Integer taskUserId = (Integer) taskData.get("userId");
-            if (!userId.equals(taskUserId)) {
-                throw new RuntimeException("无权限取消该任务");
-            }
-            
-            // 更新任务状态为已取消
-            updateTaskStatus(taskId, "cancelled", 0, "任务已被用户取消");
-            
-            log.info("任务已取消，任务ID：{}", taskId);
-            
-        } catch (Exception e) {
-            log.error("取消任务失败，任务ID：{}", taskId, e);
-            throw new RuntimeException("取消任务失败: " + e.getMessage());
-        }
-    }
-    
-    @Override
     public String createTask(String taskType, Object taskData, Integer userId) {
         try {
             String taskId = UUID.randomUUID().toString().replace("-", "");

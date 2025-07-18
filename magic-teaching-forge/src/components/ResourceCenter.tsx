@@ -86,12 +86,13 @@ interface QAMessage {
 
 interface QAInterfaceProps {
   knowledgeBases: KnowledgeBase[];
+  initialKnowledgeBaseId?: string;
 }
 
-const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
+const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases, initialKnowledgeBaseId = '' }) => {
   const [messages, setMessages] = useState<QAMessage[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState('');
-  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<string>('');
+  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<string>(initialKnowledgeBaseId);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -185,7 +186,7 @@ const QAInterface: React.FC<QAInterfaceProps> = ({ knowledgeBases }) => {
               <SelectValue placeholder="请选择知识库" />
             </SelectTrigger>
             <SelectContent>
-              {Array.isArray(knowledgeBases) && knowledgeBases.filter(kb => kb.status === 'ready').map((kb) => (
+              {Array.isArray(knowledgeBases) && knowledgeBases.filter(kb => kb.status === 'completed').map((kb) => (
                 <SelectItem key={kb.id || kb.knowledgeBaseId} value={kb.id || kb.knowledgeBaseId}>
                   {kb.name} ({kb.resourceCount || 0} 个资源)
                 </SelectItem>
@@ -293,10 +294,15 @@ const ResourceCenter: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // 从URL参数获取初始tab值
+  // 从URL参数获取初始tab值和知识库ID
   const getInitialTab = () => {
     const params = new URLSearchParams(location.search);
     return params.get('tab') || 'resources';
+  };
+  
+  const getInitialKnowledgeBaseId = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get('kb') || '';
   };
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -316,6 +322,7 @@ const ResourceCenter: React.FC = () => {
   // 创建知识库对话框状态
   const [createKbDialogOpen, setCreateKbDialogOpen] = useState(false);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [selectedKnowledgeBaseForQA, setSelectedKnowledgeBaseForQA] = useState<string>(getInitialKnowledgeBaseId());
   const [newKbForm, setNewKbForm] = useState({
     name: '',
     description: '',
@@ -464,6 +471,13 @@ const ResourceCenter: React.FC = () => {
     }
   };
 
+  // 处理智能问答按钮点击
+  const handleSmartQA = (knowledgeBaseId: string) => {
+    setActiveTab('qa');
+    // 在QA Tab中预选知识库
+    setSelectedKnowledgeBaseForQA(knowledgeBaseId);
+  };
+
   // 处理资源选择
   const handleResourceSelect = (resourceId: string, checked: boolean) => {
     if (checked) {
@@ -545,7 +559,8 @@ const ResourceCenter: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'processing': return <Badge className="bg-blue-100 text-blue-700 border-blue-200">处理中</Badge>;
-      case 'ready': return <Badge className="bg-green-100 text-green-700 border-green-200">就绪</Badge>;
+      case 'completed': return <Badge className="bg-green-100 text-green-700 border-green-200">就绪</Badge>;
+      case 'failed': return <Badge className="bg-red-100 text-red-700 border-red-200">失败</Badge>;
       case 'vectorized': return <Badge className="bg-purple-100 text-purple-700 border-purple-200">已向量化</Badge>;
       default: return <Badge className="bg-gray-100 text-gray-700 border-gray-200">未知</Badge>;
     }
@@ -904,8 +919,8 @@ const ResourceCenter: React.FC = () => {
                         </CardDescription>
                       </div>
                     </div>
-                    <Badge className={kb.status === 'ready' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}>
-                      {kb.status === 'ready' ? '就绪' : '构建中'}
+                    <Badge className={kb.status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}>
+                      {kb.status === 'completed' ? '就绪' : '构建中'}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -922,7 +937,11 @@ const ResourceCenter: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 pt-2">
-                      <Button size="sm" className="flex-1">
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleSmartQA(kb.id || kb.knowledgeBaseId)}
+                      >
                         <MessageSquare className="h-4 w-4 mr-2" />
                         智能问答
                       </Button>
@@ -1096,7 +1115,7 @@ const ResourceCenter: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="qa" className="space-y-6">
-          <QAInterface knowledgeBases={knowledgeBases} />
+          <QAInterface knowledgeBases={knowledgeBases} initialKnowledgeBaseId={selectedKnowledgeBaseForQA} />
         </TabsContent>
       </Tabs>
     </div>
