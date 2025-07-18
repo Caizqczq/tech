@@ -9,9 +9,11 @@ import com.mtm.backend.model.DTO.ResourceQueryDTO;
 import com.mtm.backend.model.VO.ResourceUploadVO;
 import com.mtm.backend.model.VO.ResourceDetailVO;
 import com.mtm.backend.model.VO.KnowledgeBaseVO;
+import com.mtm.backend.model.VO.FilePreviewVO;
 import com.mtm.backend.service.knowledge.KnowledgeBaseService;
 import com.mtm.backend.service.rag.RAGFacadeService;
 import com.mtm.backend.service.ResourceService;
+import com.mtm.backend.service.preview.FilePreviewService;
 import com.mtm.backend.utils.ThreadLocalUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final KnowledgeBaseService knowledgeBaseService;
     private final RAGFacadeService ragFacadeService;
+    private final FilePreviewService filePreviewService;
     
     private static final String[] ALLOWED_DOCUMENT_TYPES = {
         "application/pdf",
@@ -660,6 +663,46 @@ public class ResourceController {
         } catch (Exception e) {
             log.error("获取资源统计失败", e);
             return ResponseEntity.status(500).body("获取统计失败: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取资源预览信息
+     */
+    @GetMapping("/{resourceId}/preview")
+    public ResponseEntity<?> getResourcePreview(@PathVariable String resourceId) {
+        try {
+            Integer userId = ThreadLocalUtil.get();
+            if (userId == null) {
+                return ResponseEntity.status(401).body(createErrorResponse("用户未登录"));
+            }
+            
+            if (resourceId == null || resourceId.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(createErrorResponse("资源ID不能为空"));
+            }
+            
+            // 首先获取资源详情验证权限
+            ResourceDetailVO resourceDetail = resourceService.getResourceDetail(resourceId, userId);
+            if (resourceDetail == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 获取预览信息
+            FilePreviewVO previewInfo = filePreviewService.generatePreview(
+                resourceService.getResourceEntity(resourceId, userId)
+            );
+            
+            return ResponseEntity.ok(previewInfo);
+            
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("不存在") || e.getMessage().contains("无权访问")) {
+                return ResponseEntity.notFound().build();
+            }
+            log.error("获取资源预览失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取资源预览失败: " + e.getMessage()));
+        } catch (Exception e) {
+            log.error("获取资源预览失败", e);
+            return ResponseEntity.internalServerError().body(createErrorResponse("获取资源预览失败: " + e.getMessage()));
         }
     }
 }

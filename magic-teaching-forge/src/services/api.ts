@@ -541,20 +541,22 @@ class ApiService {
   }
 
   async getResourceDetail(resourceId: string): Promise<{
-    resourceId: string;
-    fileName: string;
-    category: string;
-    description?: string;
+    id: string;
+    title: string;
+    description: string;
+    subject: string;
+    courseLevel: string;
+    resourceType: string;
+    originalName: string;
     fileSize: number;
-    extractedContent: string;
-    metadata: {
-      pageCount?: number;
-      wordCount?: number;
-      language?: string;
-      keywords?: string[];
-    };
-    uploadTime: string;
-    downloadCount: number;
+    contentType: string;
+    keywords: string[];
+    downloadUrl: string;
+    transcriptionText?: string;
+    isVectorized: boolean;
+    knowledgeBaseIds: string[];
+    createdAt: string;
+    updatedAt: string;
   }> {
     return this.request(`/resources/${resourceId}`);
   }
@@ -569,6 +571,19 @@ class ApiService {
     expiresAt: string;
   }> {
     return this.request(`/resources/${resourceId}/download`);
+  }
+
+  async getResourcePreview(resourceId: string): Promise<{
+    previewType: string;
+    previewUrl: string;
+    originalUrl: string;
+    previewable: boolean;
+    previewImages?: string[];
+    textContent?: string;
+    metadata?: Record<string, any>;
+    errorMessage?: string;
+  }> {
+    return this.request(`/resources/${resourceId}/preview`);
   }
 
   async getResourceStats(): Promise<{

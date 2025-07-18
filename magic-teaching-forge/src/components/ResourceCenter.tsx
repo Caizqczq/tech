@@ -46,6 +46,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { UploadDialog } from './UploadDialog';
+import ResourcePreviewModal from './ResourcePreviewModal';
 
 interface ResourceItem {
   id: string;
@@ -323,6 +324,10 @@ const ResourceCenter: React.FC = () => {
   const [createKbDialogOpen, setCreateKbDialogOpen] = useState(false);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [selectedKnowledgeBaseForQA, setSelectedKnowledgeBaseForQA] = useState<string>(getInitialKnowledgeBaseId());
+  
+  // 预览相关状态
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [newKbForm, setNewKbForm] = useState({
     name: '',
     description: '',
@@ -495,6 +500,12 @@ const ResourceCenter: React.FC = () => {
     } catch (error) {
       console.error('下载资源失败:', error);
     }
+  };
+
+  // 预览资源
+  const handlePreviewResource = (resourceId: string) => {
+    setSelectedResourceId(resourceId);
+    setPreviewModalOpen(true);
   };
 
   // 监听URL变化，更新activeTab
@@ -806,7 +817,12 @@ const ResourceCenter: React.FC = () => {
                           <span>{resource.uploadDate}</span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/20">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 hover:bg-indigo-100 dark:hover:bg-indigo-900/20"
+                            onClick={() => handlePreviewResource(resource.id)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button 
@@ -1088,6 +1104,13 @@ const ResourceCenter: React.FC = () => {
           <QAInterface knowledgeBases={knowledgeBases} initialKnowledgeBaseId={selectedKnowledgeBaseForQA} />
         </TabsContent>
       </Tabs>
+      
+      {/* 资源预览模态框 */}
+      <ResourcePreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        resourceId={selectedResourceId || ''}
+      />
     </div>
   );
 };

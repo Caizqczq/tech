@@ -17,9 +17,11 @@ import com.mtm.backend.model.VO.KnowledgeBaseVO;
 import com.mtm.backend.repository.TeachingResource;
 import com.mtm.backend.repository.TranscriptionTask;
 import com.mtm.backend.repository.KnowledgeBase;
+import com.mtm.backend.repository.KnowledgeBaseResource;
 import com.mtm.backend.repository.mapper.TeachingResourceMapper;
 import com.mtm.backend.repository.mapper.TranscriptionTaskMapper;
 import com.mtm.backend.repository.mapper.KnowledgeBaseMapper;
+import com.mtm.backend.repository.mapper.KnowledgeBaseResourceMapper;
 import com.mtm.backend.utils.LocalFileUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +56,7 @@ public class ResourceService {
     private final TeachingResourceMapper teachingResourceMapper;
     private final TranscriptionTaskMapper transcriptionTaskMapper;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
+    private final KnowledgeBaseResourceMapper knowledgeBaseResourceMapper;
     private final VectorStore vectorStore;
     private final LocalFileUtil localFileUtil;
     private final AudioTranscriptionModel audioTranscriptionModel;
@@ -459,6 +462,28 @@ public class ResourceService {
     }
     
     /**
+     * 获取资源实体（供预览服务使用）
+     */
+    public TeachingResource getResourceEntity(String resourceId, Integer userId) {
+        try {
+            TeachingResource resource = teachingResourceMapper.selectById(resourceId);
+            if (resource == null) {
+                throw new RuntimeException("资源不存在");
+            }
+            
+            if (!resource.getUserId().equals(userId)) {
+                throw new RuntimeException("无权访问该资源");
+            }
+            
+            return resource;
+            
+        } catch (Exception e) {
+            log.error("获取资源实体失败", e);
+            throw new RuntimeException("获取资源实体失败: " + e.getMessage());
+        }
+    }
+    
+    /**
      * 删除教学资源
      */
     public void deleteResource(String resourceId, Integer userId) {
@@ -688,6 +713,9 @@ public class ResourceService {
     }
     
     private ResourceDetailVO convertToResourceDetailVO(TeachingResource resource) {
+        // 查询资源所属的知识库
+        List<String> knowledgeBaseIds = getResourceKnowledgeBaseIds(resource.getId());
+        
         return ResourceDetailVO.builder()
                 .id(resource.getId())
                 .title(resource.getTitle())
@@ -702,9 +730,30 @@ public class ResourceService {
                 .downloadUrl(localFileUtil.generateUrl(resource.getFilePath()))
                 .transcriptionText(resource.getTranscriptionText())
                 .isVectorized(resource.getIsVectorized())
+                .knowledgeBaseIds(knowledgeBaseIds)
                 .createdAt(resource.getCreatedAt())
                 .updatedAt(resource.getUpdatedAt())
                 .build();
+    }
+    
+    /**
+     * 获取资源所属的知识库ID列表
+     */
+    private List<String> getResourceKnowledgeBaseIds(String resourceId) {
+        try {
+            QueryWrapper<KnowledgeBaseResource> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("resource_id", resourceId);
+            
+            List<KnowledgeBaseResource> knowledgeBaseResources = knowledgeBaseResourceMapper.selectList(queryWrapper);
+            
+            return knowledgeBaseResources.stream()
+                    .map(KnowledgeBaseResource::getKnowledgeBaseId)
+                    .collect(Collectors.toList());
+                    
+        } catch (Exception e) {
+            log.error("查询资源所属知识库失败: {}", e.getMessage());
+            return new ArrayList<>();
+        }
     }
     
     private Long getResourceCountByType(Integer userId, String type) {
