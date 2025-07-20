@@ -15,13 +15,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 检查token是否存在的辅助函数
+const hasToken = (): boolean => {
+  return !!localStorage.getItem('token');
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    if (hasToken()) {
+      // 有token就尝试获取用户信息，但失败不影响认证状态
       getCurrentUser();
     } else {
       setLoading(false);
@@ -34,8 +39,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(user);
     } catch (error) {
       console.error('获取用户信息失败:', error);
-      // 简化处理：不自动清除token，让JWT自然过期
-      // 用户可以通过重新登录来获取新的token
+      // 不清除token，不影响认证状态
+      // 用户信息获取失败不代表未认证，只是暂时无法显示用户信息
     } finally {
       setLoading(false);
     }
@@ -114,7 +119,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     login,
     register,
     logout,
-    isAuthenticated: !!user,
+    // 完全基于token存在性判断认证状态
+    isAuthenticated: hasToken(),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

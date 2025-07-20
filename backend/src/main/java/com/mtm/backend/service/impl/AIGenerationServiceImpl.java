@@ -13,11 +13,17 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 
 @Service
 @RequiredArgsConstructor
@@ -77,17 +83,26 @@ public class AIGenerationServiceImpl implements AIGenerationService {
                     .content();
             
             // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 60, "正在生成讲解文档...");
+
+            // 生成Word文档
+            byte[] docBytes = generateExplanationDocument(explanation, request);
+
+            // 更新任务状态
             taskService.updateTaskStatus(taskId, "processing", 80, "正在处理生成结果...");
-            
+
             // 构建结果
             Map<String, Object> result = new HashMap<>();
             result.put("content", explanation);
+            result.put("fileData", docBytes);
+            result.put("fileName", generateFileName(request.getTopic() + "_讲解", "docx"));
+            result.put("fileSize", docBytes.length);
             result.put("topic", request.getTopic());
             result.put("subject", request.getSubject());
             result.put("courseLevel", request.getCourseLevel());
             result.put("style", request.getStyle());
             result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            
+
             // 完成任务
             taskService.completeTask(taskId, result);
             
@@ -274,18 +289,27 @@ public class AIGenerationServiceImpl implements AIGenerationService {
                     .content();
             
             // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 60, "正在生成习题文档...");
+
+            // 生成Word文档
+            byte[] docBytes = generateQuizDocument(quizContent, request);
+
+            // 更新任务状态
             taskService.updateTaskStatus(taskId, "processing", 80, "正在处理习题生成结果...");
-            
+
             // 构建结果
             Map<String, Object> result = new HashMap<>();
             result.put("content", quizContent);
+            result.put("fileData", docBytes);
+            result.put("fileName", generateFileName(request.getTopic() + "_习题", "docx"));
+            result.put("fileSize", docBytes.length);
             result.put("topic", request.getTopic());
             result.put("subject", request.getSubject());
             result.put("courseLevel", request.getCourseLevel());
             result.put("difficulty", request.getDifficulty());
             result.put("questionCount", request.getQuestionCount());
             result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            
+
             // 完成任务
             taskService.completeTask(taskId, result);
             
@@ -427,6 +451,152 @@ public class AIGenerationServiceImpl implements AIGenerationService {
         } catch (Exception e) {
             log.error("PPT重新生成失败，任务ID：{}", taskId, e);
             taskService.failTask(taskId, "PPT重新生成失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 生成习题Word文档
+     */
+    private byte[] generateQuizDocument(String content, QuizGenerationDTO request) {
+        try {
+            // 创建Word文档
+            XWPFDocument document = new XWPFDocument();
+
+            // 添加标题
+            XWPFParagraph titleParagraph = document.createParagraph();
+            titleParagraph.setAlignment(ParagraphAlignment.CENTER);
+            XWPFRun titleRun = titleParagraph.createRun();
+            titleRun.setText(request.getTopic() + " - 习题集");
+            titleRun.setBold(true);
+            titleRun.setFontSize(18);
+            titleRun.setFontFamily("宋体");
+
+            // 添加空行
+            document.createParagraph();
+
+            // 添加基本信息
+            XWPFParagraph infoParagraph = document.createParagraph();
+            XWPFRun infoRun = infoParagraph.createRun();
+            infoRun.setText("学科：" + request.getSubject());
+            infoRun.addBreak();
+            infoRun.setText("课程层次：" + request.getCourseLevel());
+            infoRun.addBreak();
+            if (request.getDifficulty() != null) {
+                infoRun.setText("难度：" + request.getDifficulty());
+                infoRun.addBreak();
+            }
+            if (request.getQuestionCount() != null) {
+                infoRun.setText("题目数量：" + request.getQuestionCount());
+                infoRun.addBreak();
+            }
+            infoRun.setText("生成时间：" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            infoRun.setFontFamily("宋体");
+
+            // 添加分隔线
+            document.createParagraph();
+            XWPFParagraph separatorParagraph = document.createParagraph();
+            XWPFRun separatorRun = separatorParagraph.createRun();
+            separatorRun.setText("=" + "=".repeat(49));
+
+            // 添加内容
+            document.createParagraph();
+
+            // 按段落分割内容并添加到文档
+            String[] paragraphs = content.split("\n\n");
+            for (String paragraph : paragraphs) {
+                if (paragraph.trim().isEmpty()) continue;
+
+                XWPFParagraph contentParagraph = document.createParagraph();
+                XWPFRun contentRun = contentParagraph.createRun();
+                contentRun.setText(paragraph.trim());
+                contentRun.setFontFamily("宋体");
+                contentRun.setFontSize(12);
+
+                // 添加段落间距
+                document.createParagraph();
+            }
+
+            // 转换为字节数组
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.write(outputStream);
+            document.close();
+
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            log.error("生成习题Word文档失败", e);
+            throw new RuntimeException("生成习题文档失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 生成讲解Word文档
+     */
+    private byte[] generateExplanationDocument(String content, ExplanationRequestDTO request) {
+        try {
+            // 创建Word文档
+            XWPFDocument document = new XWPFDocument();
+
+            // 添加标题
+            XWPFParagraph titleParagraph = document.createParagraph();
+            titleParagraph.setAlignment(ParagraphAlignment.CENTER);
+            XWPFRun titleRun = titleParagraph.createRun();
+            titleRun.setText(request.getTopic() + " - 教学讲解");
+            titleRun.setBold(true);
+            titleRun.setFontSize(18);
+            titleRun.setFontFamily("宋体");
+
+            // 添加空行
+            document.createParagraph();
+
+            // 添加基本信息
+            XWPFParagraph infoParagraph = document.createParagraph();
+            XWPFRun infoRun = infoParagraph.createRun();
+            infoRun.setText("学科：" + request.getSubject());
+            infoRun.addBreak();
+            infoRun.setText("课程层次：" + request.getCourseLevel());
+            infoRun.addBreak();
+            if (request.getStyle() != null) {
+                infoRun.setText("讲解风格：" + request.getStyle());
+                infoRun.addBreak();
+            }
+            infoRun.setText("生成时间：" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            infoRun.setFontFamily("宋体");
+
+            // 添加分隔线
+            document.createParagraph();
+            XWPFParagraph separatorParagraph = document.createParagraph();
+            XWPFRun separatorRun = separatorParagraph.createRun();
+            separatorRun.setText("=" + "=".repeat(49));
+
+            // 添加内容
+            document.createParagraph();
+
+            // 按段落分割内容并添加到文档
+            String[] paragraphs = content.split("\n\n");
+            for (String paragraph : paragraphs) {
+                if (paragraph.trim().isEmpty()) continue;
+
+                XWPFParagraph contentParagraph = document.createParagraph();
+                XWPFRun contentRun = contentParagraph.createRun();
+                contentRun.setText(paragraph.trim());
+                contentRun.setFontFamily("宋体");
+                contentRun.setFontSize(12);
+
+                // 添加段落间距
+                document.createParagraph();
+            }
+
+            // 转换为字节数组
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.write(outputStream);
+            document.close();
+
+            return outputStream.toByteArray();
+
+        } catch (Exception e) {
+            log.error("生成讲解Word文档失败", e);
+            throw new RuntimeException("生成讲解文档失败: " + e.getMessage());
         }
     }
 

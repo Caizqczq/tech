@@ -12,6 +12,8 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import PPTPreviewModal from '@/components/PPTPreviewModal';
+import QuizPreviewModal from '@/components/QuizPreviewModal';
+import ExplanationPreviewModal from '@/components/ExplanationPreviewModal';
 import { 
   Presentation, 
   FileQuestion, 
@@ -52,7 +54,8 @@ const AIGeneration = () => {
   const [previewModal, setPreviewModal] = useState({
     isOpen: false,
     taskId: '',
-    taskData: null as GenerationTask | null
+    taskData: null as GenerationTask | null,
+    type: '' as 'ppt' | 'quiz' | 'explanation' | ''
   });
 
   const { toast } = useToast();
@@ -306,7 +309,8 @@ const AIGeneration = () => {
     setPreviewModal({
       isOpen: true,
       taskId: task.id,
-      taskData: task
+      taskData: task,
+      type: task.type as 'ppt' | 'quiz' | 'explanation'
     });
   };
 
@@ -314,7 +318,8 @@ const AIGeneration = () => {
     setPreviewModal({
       isOpen: false,
       taskId: '',
-      taskData: null
+      taskData: null,
+      type: ''
     });
   };
 
@@ -893,17 +898,45 @@ const AIGeneration = () => {
       </div>
       </main>
 
-      {/* PPT预览模态框 */}
-      <PPTPreviewModal
-        isOpen={previewModal.isOpen}
-        onClose={closePreviewModal}
-        taskId={previewModal.taskId}
-        onDownload={() => {
-          if (previewModal.taskData) {
-            handleDownload(previewModal.taskData);
-          }
-        }}
-      />
+      {/* 预览模态框 */}
+      {previewModal.type === 'ppt' && (
+        <PPTPreviewModal
+          isOpen={previewModal.isOpen}
+          onClose={closePreviewModal}
+          taskId={previewModal.taskId}
+          onDownload={() => {
+            if (previewModal.taskData) {
+              handleDownload(previewModal.taskData);
+            }
+          }}
+        />
+      )}
+
+      {previewModal.type === 'quiz' && (
+        <QuizPreviewModal
+          isOpen={previewModal.isOpen}
+          onClose={closePreviewModal}
+          taskId={previewModal.taskId}
+          onDownload={() => {
+            if (previewModal.taskData) {
+              handleDownload(previewModal.taskData);
+            }
+          }}
+        />
+      )}
+
+      {previewModal.type === 'explanation' && (
+        <ExplanationPreviewModal
+          isOpen={previewModal.isOpen}
+          onClose={closePreviewModal}
+          taskId={previewModal.taskId}
+          onDownload={() => {
+            if (previewModal.taskData) {
+              handleDownload(previewModal.taskData);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
