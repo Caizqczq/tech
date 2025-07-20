@@ -810,12 +810,66 @@ class ApiService {
       downloadUrl?: string;
       content?: string;
       metadata?: any;
+      fileData?: any;
+      fileName?: string;
+      fileSize?: number;
     };
     error?: string;
     createdAt: string;
     completedAt?: string;
   }> {
     return this.request(`/tasks/${taskId}/status`);
+  }
+
+  async downloadFile(taskId: string): Promise<Blob> {
+    console.log('downloadFile - 开始下载，taskId:', taskId);
+    console.log('downloadFile - API_BASE_URL:', API_BASE_URL);
+    console.log('downloadFile - token:', this.getToken());
+
+    const response = await fetch(`${API_BASE_URL}/download/${taskId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.getToken()}`
+      }
+    });
+
+    console.log('downloadFile - 响应状态:', response.status, response.statusText);
+    console.log('downloadFile - 响应头:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('downloadFile - 错误响应:', errorText);
+      throw new Error(`下载失败: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const blob = await response.blob();
+    console.log('downloadFile - blob信息:', blob.size, blob.type);
+    return blob;
+  }
+
+  async previewFile(taskId: string): Promise<{
+    taskId: string;
+    content: string;
+    fileName: string;
+    fileSize: number;
+    topic: string;
+    generatedAt: string;
+  }> {
+    return this.request(`/preview/${taskId}`);
+  }
+
+  async regeneratePPT(taskId: string, data: {
+    content: string;
+    slides: any[];
+  }): Promise<{
+    success: boolean;
+    message: string;
+    newTaskId?: string;
+  }> {
+    return this.request(`/regenerate-ppt/${taskId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   // 测试接口

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -130,6 +131,53 @@ public class TaskServiceImpl implements TaskService {
         } catch (Exception e) {
             log.error("完成任务失败，任务ID：{}", taskId, e);
             throw new RuntimeException("完成任务失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void createTask(String taskId, String taskType, Integer userId, String description) {
+        try {
+            String key = TASK_PREFIX + taskId;
+
+            Map<String, Object> taskData = new HashMap<>();
+            taskData.put("taskId", taskId);
+            taskData.put("taskType", taskType);
+            taskData.put("userId", userId);
+            taskData.put("description", description);
+            taskData.put("status", "created");
+            taskData.put("progress", 0);
+            taskData.put("createdAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            taskData.put("updatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+            redisTemplate.opsForHash().putAll(key, taskData);
+            redisTemplate.expire(key, Duration.ofHours(24));
+
+            log.info("创建任务成功，任务ID：{}，类型：{}", taskId, taskType);
+
+        } catch (Exception e) {
+            log.error("创建任务失败，任务ID：{}", taskId, e);
+            throw new RuntimeException("创建任务失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public void failTask(String taskId, String errorMessage) {
+        try {
+            String key = TASK_PREFIX + taskId;
+
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("status", "failed");
+            updates.put("progress", 0);
+            updates.put("error", errorMessage);
+            updates.put("updatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+            redisTemplate.opsForHash().putAll(key, updates);
+
+            log.error("任务失败，任务ID：{}，错误：{}", taskId, errorMessage);
+
+        } catch (Exception e) {
+            log.error("标记任务失败时出错，任务ID：{}", taskId, e);
+            throw new RuntimeException("标记任务失败时出错: " + e.getMessage());
         }
     }
 }

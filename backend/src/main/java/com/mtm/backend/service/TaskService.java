@@ -26,4 +26,14 @@ public interface TaskService {
      * 完成任务
      */
     void completeTask(String taskId, Object result);
+
+    /**
+     * 创建任务（带自定义ID）
+     */
+    void createTask(String taskId, String taskType, Integer userId, String description);
+
+    /**
+     * 任务失败
+     */
+    void failTask(String taskId, String errorMessage);
 }

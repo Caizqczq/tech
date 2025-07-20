@@ -24,4 +24,9 @@ public interface AIGenerationService {
      * 生成习题
      */
     TaskResponseVO generateQuiz(QuizGenerationDTO request, Integer userId);
+
+    /**
+     * 使用编辑后的内容重新生成PPT
+     */
+    void regeneratePPTWithContent(String taskId, PPTGenerationDTO request, Integer userId, String editedContent);
 }

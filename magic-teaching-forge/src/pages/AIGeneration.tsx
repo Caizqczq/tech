@@ -10,6 +10,8 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+import PPTPreviewModal from '@/components/PPTPreviewModal';
 import { 
   Presentation, 
   FileQuestion, 
@@ -45,7 +47,16 @@ interface GenerationTask {
 const AIGeneration = () => {
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [activeTab, setActiveTab] = useState('ppt');
-  
+
+  // 预览模态框状态
+  const [previewModal, setPreviewModal] = useState({
+    isOpen: false,
+    taskId: '',
+    taskData: null as GenerationTask | null
+  });
+
+  const { toast } = useToast();
+
   // PPT生成表单
   const [pptForm, setPptForm] = useState({
     topic: '',
@@ -244,6 +255,67 @@ const AIGeneration = () => {
         }));
       }
     }, 2000); // 每2秒检查一次
+  };
+
+  const handleDownload = async (task: GenerationTask) => {
+    try {
+      console.log('开始下载任务:', task.id, task);
+
+      // 检查任务状态
+      if (task.status !== 'completed') {
+        throw new Error('任务未完成，无法下载');
+      }
+
+      if (!task.output) {
+        throw new Error('任务结果不存在，无法下载');
+      }
+
+      // 使用apiService的downloadFile方法
+      console.log('调用downloadFile API...');
+      const blob = await apiService.downloadFile(task.id);
+      console.log('下载blob成功:', blob.size, 'bytes');
+
+      if (blob.size === 0) {
+        throw new Error('下载的文件为空');
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = task.output?.fileName || `${task.title}.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "下载成功",
+        description: `文件已开始下载: ${a.download}`,
+      });
+    } catch (error: any) {
+      console.error('下载失败详细信息:', error);
+      toast({
+        title: "下载失败",
+        description: error.message || '未知错误',
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePreview = (task: GenerationTask) => {
+    setPreviewModal({
+      isOpen: true,
+      taskId: task.id,
+      taskData: task
+    });
+  };
+
+  const closePreviewModal = () => {
+    setPreviewModal({
+      isOpen: false,
+      taskId: '',
+      taskData: null
+    });
   };
 
   const getTaskIcon = (type: string) => {
@@ -768,11 +840,20 @@ const AIGeneration = () => {
                           <div className="flex items-center space-x-2">
                             {task.status === 'completed' && task.output && (
                               <>
-                                <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  onClick={() => handlePreview(task)}
+                                >
                                   <Eye className="h-4 w-4 mr-1" />
                                   预览
                                 </Button>
-                                <Button size="sm" className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white">
+                                <Button
+                                  size="sm"
+                                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                                  onClick={() => handleDownload(task)}
+                                >
                                   <Download className="h-4 w-4 mr-1" />
                                   下载
                                 </Button>
@@ -811,6 +892,18 @@ const AIGeneration = () => {
         </div>
       </div>
       </main>
+
+      {/* PPT预览模态框 */}
+      <PPTPreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={closePreviewModal}
+        taskId={previewModal.taskId}
+        onDownload={() => {
+          if (previewModal.taskData) {
+            handleDownload(previewModal.taskData);
+          }
+        }}
+      />
     </div>
   );
 };

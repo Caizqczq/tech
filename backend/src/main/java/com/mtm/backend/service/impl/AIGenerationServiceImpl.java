@@ -5,6 +5,7 @@ import com.mtm.backend.model.DTO.PPTGenerationDTO;
 import com.mtm.backend.model.DTO.QuizGenerationDTO;
 import com.mtm.backend.model.VO.TaskResponseVO;
 import com.mtm.backend.service.AIGenerationService;
+import com.mtm.backend.service.PPTGenerationService;
 import com.mtm.backend.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,9 +23,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class AIGenerationServiceImpl implements AIGenerationService {
-    
+
     private final ChatClient.Builder chatClientBuilder;
     private final TaskService taskService;
+    private final PPTGenerationService pptGenerationService;
     
     @Override
     public TaskResponseVO generateExplanation(ExplanationRequestDTO request, Integer userId) {
@@ -48,7 +50,7 @@ public class AIGenerationServiceImpl implements AIGenerationService {
         }
     }
     
-    @Async
+    @Async("aiGenerationTaskExecutor")
     public void generateExplanationAsync(String taskId, ExplanationRequestDTO request, Integer userId) {
         try {
             log.info("开始生成讲解内容，任务ID：{}，主题：{}", taskId, request.getTopic());
@@ -186,7 +188,7 @@ public class AIGenerationServiceImpl implements AIGenerationService {
         return "请详细解释：" + request.getTopic();
     }
     
-    @Async
+    @Async("aiGenerationTaskExecutor")
     public void generatePPTAsync(String taskId, PPTGenerationDTO request, Integer userId) {
         try {
             log.info("开始生成PPT，任务ID：{}，主题：{}", taskId, request.getTopic());
@@ -213,18 +215,27 @@ public class AIGenerationServiceImpl implements AIGenerationService {
                     .content();
             
             // 更新任务状态
-            taskService.updateTaskStatus(taskId, "processing", 80, "正在处理PPT生成结果...");
-            
+            taskService.updateTaskStatus(taskId, "processing", 60, "正在生成PPT文件...");
+
+            // 生成实际的PPT文件
+            byte[] pptBytes = pptGenerationService.generatePPTFile(pptContent, request);
+
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 80, "正在保存PPT文件...");
+
             // 构建结果
             Map<String, Object> result = new HashMap<>();
             result.put("content", pptContent);
+            result.put("fileData", pptBytes);
+            result.put("fileName", generateFileName(request.getTopic(), "pptx"));
+            result.put("fileSize", pptBytes.length);
             result.put("topic", request.getTopic());
             result.put("subject", request.getSubject());
             result.put("courseLevel", request.getCourseLevel());
             result.put("slideCount", request.getSlideCount());
             result.put("style", request.getStyle());
             result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            
+
             // 完成任务
             taskService.completeTask(taskId, result);
             
@@ -236,7 +247,7 @@ public class AIGenerationServiceImpl implements AIGenerationService {
         }
     }
     
-    @Async
+    @Async("aiGenerationTaskExecutor")
     public void generateQuizAsync(String taskId, QuizGenerationDTO request, Integer userId) {
         try {
             log.info("开始生成习题，任务ID：{}，主题：{}", taskId, request.getTopic());
@@ -371,5 +382,71 @@ public class AIGenerationServiceImpl implements AIGenerationService {
     
     private String buildQuizQuery(QuizGenerationDTO request) {
         return "请为主题\"" + request.getTopic() + "\"出一套完整的习题。";
+    }
+
+    /**
+     * 使用编辑后的内容重新生成PPT
+     */
+    @Override
+    @Async("aiGenerationTaskExecutor")
+    public void regeneratePPTWithContent(String taskId, PPTGenerationDTO request, Integer userId, String editedContent) {
+        log.info("开始重新生成PPT，任务ID：{}，主题：{}", taskId, request.getTopic());
+
+        try {
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 20, "正在处理编辑后的内容...");
+
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 60, "正在生成PPT文件...");
+
+            // 直接使用编辑后的内容生成PPT文件
+            byte[] pptBytes = pptGenerationService.generatePPTFile(editedContent, request);
+
+            // 更新任务状态
+            taskService.updateTaskStatus(taskId, "processing", 80, "正在保存PPT文件...");
+
+            // 构建结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("content", editedContent);
+            result.put("fileData", pptBytes);
+            result.put("fileName", generateFileName(request.getTopic() + "_编辑版", "pptx"));
+            result.put("fileSize", pptBytes.length);
+            result.put("topic", request.getTopic());
+            result.put("subject", request.getSubject());
+            result.put("courseLevel", request.getCourseLevel());
+            result.put("slideCount", request.getSlideCount());
+            result.put("style", request.getStyle());
+            result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            result.put("isRegenerated", true);
+
+            // 完成任务
+            taskService.completeTask(taskId, result);
+
+            log.info("PPT重新生成完成，任务ID：{}，文件大小：{} bytes", taskId, pptBytes.length);
+
+        } catch (Exception e) {
+            log.error("PPT重新生成失败，任务ID：{}", taskId, e);
+            taskService.failTask(taskId, "PPT重新生成失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 生成文件名
+     */
+    private String generateFileName(String topic, String extension) {
+        // 清理主题名称，移除特殊字符
+        String cleanTopic = topic.replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9\\s]", "")
+                                 .replaceAll("\\s+", "_")
+                                 .trim();
+
+        // 限制长度
+        if (cleanTopic.length() > 50) {
+            cleanTopic = cleanTopic.substring(0, 50);
+        }
+
+        // 添加时间戳
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+
+        return cleanTopic + "_" + timestamp + "." + extension;
     }
 }
